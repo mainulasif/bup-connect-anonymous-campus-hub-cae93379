@@ -323,64 +323,50 @@ const AdminPage: React.FC = () => {
 
       {tab === 'users' && (
         <div className="p-4 space-y-4">
-          <div className="flex gap-2">
-            <Input placeholder="Search by name or username..." value={userSearch} onChange={e => setUserSearch(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSearchUsers()} className="bg-card border-border" />
-            <Button size="sm" onClick={handleSearchUsers} disabled={searchLoading}>
-              <Search className="w-4 h-4" />
+          <div className="flex gap-2 border-b border-border pb-2">
+            <Button size="sm" variant={usersSubTab === 'banned' ? 'default' : 'ghost'} onClick={() => setUsersSubTab('banned')}>
+              <Ban className="w-3 h-3 mr-1" /> Banned ({bannedUsers.length})
+            </Button>
+            <Button size="sm" variant={usersSubTab === 'jailed' ? 'default' : 'ghost'} onClick={() => setUsersSubTab('jailed')}>
+              <Lock className="w-3 h-3 mr-1" /> Jailed ({jailedUsers.length})
+            </Button>
+            <Button size="sm" variant={usersSubTab === 'search' ? 'default' : 'ghost'} onClick={() => setUsersSubTab('search')}>
+              <Search className="w-3 h-3 mr-1" /> Search
             </Button>
           </div>
-          <div className="space-y-2">
-            {userResults.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Search for users to manage</p>
-            ) : userResults.map(u => (
-              <div key={u.user_id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card">
-                <AvatarImg avatarId={u.avatar_id || 1} size="sm" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{u.anonymous_name}</p>
-                  <p className="text-[10px] text-muted-foreground">@{u.username} · {u.points.toLocaleString()} pts</p>
-                  <div className="flex gap-1 mt-0.5">
-                    {u.is_admin && <span className="text-[9px] bg-primary/20 text-primary rounded px-1">Admin</span>}
-                    {u.is_banned && <span className="text-[9px] bg-red-500/20 text-red-400 rounded px-1">Banned</span>}
-                    {u.is_jailed && <span className="text-[9px] bg-yellow-500/20 text-yellow-400 rounded px-1">Jailed</span>}
-                  </div>
-                </div>
-                <div className="flex gap-1 flex-wrap">
-                  {u.is_banned ? (
-                    <Button size="sm" variant="outline" onClick={() => handleUnpunish(u.user_id, 'unban')}>
-                      <Ban className="w-3 h-3 mr-1" /> Unban
-                    </Button>
-                  ) : (
-                    <Button size="sm" variant="destructive" onClick={() => { setPunishAction('ban'); setBanDialog({ userId: u.user_id, name: u.anonymous_name }); }}>
-                      <Ban className="w-3 h-3 mr-1" /> Ban
-                    </Button>
-                  )}
-                  {u.is_jailed ? (
-                    <Button size="sm" variant="outline" onClick={() => handleUnpunish(u.user_id, 'unjail')}>
-                      <Lock className="w-3 h-3 mr-1" /> Unjail
-                    </Button>
-                  ) : (
-                    <Button size="sm" variant="destructive" onClick={() => { setPunishAction('jail'); setBanDialog({ userId: u.user_id, name: u.anonymous_name }); }}>
-                      <Lock className="w-3 h-3 mr-1" /> Jail
-                    </Button>
-                  )}
-                  {isFounder && !u.is_admin && (
-                    <Button size="sm" variant="outline" onClick={() => handlePromoteAdmin(u.user_id)}>
-                      <ShieldCheck className="w-3 h-3 mr-1" /> Make Admin
-                    </Button>
-                  )}
-                  {isFounder && u.is_admin && (
-                    <Button size="sm" variant="ghost" onClick={() => handleDemoteAdmin(u.user_id)}>
-                      <ShieldOff className="w-3 h-3 mr-1" /> Remove Admin
-                    </Button>
-                  )}
-                  <Button size="sm" variant="ghost" onClick={() => navigate(`/user/${u.user_id}`)}>
-                    <Eye className="w-3 h-3" />
-                  </Button>
-                </div>
+
+          {usersSubTab === 'search' && (
+            <>
+              <div className="flex gap-2">
+                <Input placeholder="Search by name or username..." value={userSearch} onChange={e => setUserSearch(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSearchUsers()} className="bg-card border-border" />
+                <Button size="sm" onClick={handleSearchUsers} disabled={searchLoading}>
+                  <Search className="w-4 h-4" />
+                </Button>
               </div>
-            ))}
-          </div>
+              <div className="space-y-2">
+                {userResults.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Search for users to manage</p>
+                ) : userResults.map(u => renderUserCard(u))}
+              </div>
+            </>
+          )}
+
+          {usersSubTab === 'banned' && (
+            <div className="space-y-2">
+              {bannedUsers.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No banned users</p>
+              ) : bannedUsers.map(u => renderUserCard(u))}
+            </div>
+          )}
+
+          {usersSubTab === 'jailed' && (
+            <div className="space-y-2">
+              {jailedUsers.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No jailed users</p>
+              ) : jailedUsers.map(u => renderUserCard(u))}
+            </div>
+          )}
         </div>
       )}
 
