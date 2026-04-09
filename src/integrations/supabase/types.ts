@@ -1020,6 +1020,8 @@ export type Database = {
         }
         Returns: Json
       }
+      soft_delete_comment: { Args: { _comment_id: string }; Returns: Json }
+      soft_delete_post: { Args: { _post_id: string }; Returns: Json }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
