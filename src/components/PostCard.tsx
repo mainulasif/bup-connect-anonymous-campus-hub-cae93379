@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import ReportDialog from '@/components/ReportDialog';
 import { QUICK_REACTIONS } from '@/lib/gifts';
+import { getAvatar } from '@/lib/avatars';
 
 interface PostCardProps {
   post: {
@@ -14,7 +15,7 @@ interface PostCardProps {
     user_id: string;
     content: string;
     created_at: string;
-    profiles: { anonymous_name: string; avatar_url: string } | null;
+    profiles: { anonymous_name: string; avatar_url: string; avatar_id?: number } | null;
     comment_count: number;
     reaction_counts?: Record<string, number>;
     viewer_reactions?: string[];
@@ -23,7 +24,7 @@ interface PostCardProps {
 }
 
 const PostCard: React.FC<PostCardProps> = ({ post, onRefresh }) => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [showReport, setShowReport] = useState(false);
   const isOwner = user?.id === post.user_id;
@@ -46,30 +47,24 @@ const PostCard: React.FC<PostCardProps> = ({ post, onRefresh }) => {
 
   const handleReaction = async (emoji: string) => {
     if (!user) return;
-
     const hasReacted = post.viewer_reactions?.includes(emoji);
     const query = supabase.from('reactions');
-
     const { error } = hasReacted
       ? await query.delete().eq('post_id', post.id).eq('user_id', user.id).eq('emoji', emoji)
       : await query.insert({ post_id: post.id, user_id: user.id, emoji });
-
-    if (error) {
-      toast.error('Failed to update reaction');
-      return;
-    }
-
+    if (error) { toast.error('Failed to update reaction'); return; }
     onRefresh();
   };
 
-  const avatar = post.profiles?.anonymous_name?.charAt(0)?.toUpperCase() || 'A';
+  const avatarId = post.profiles?.avatar_id || 1;
+  const avatarEmoji = getAvatar(avatarId).emoji;
 
   return (
     <>
       <div className="p-4 animate-fade-in">
         <div className="flex gap-3">
-          <button onClick={openProfile} className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-sm font-bold text-secondary-foreground shrink-0">
-            {avatar}
+          <button onClick={openProfile} className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-lg shrink-0">
+            {avatarEmoji}
           </button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
@@ -85,37 +80,26 @@ const PostCard: React.FC<PostCardProps> = ({ post, onRefresh }) => {
               {QUICK_REACTIONS.map(emoji => {
                 const count = post.reaction_counts?.[emoji] || 0;
                 const active = post.viewer_reactions?.includes(emoji);
-
                 return (
-                  <button
-                    key={emoji}
-                    onClick={() => handleReaction(emoji)}
-                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                      active ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    <span>{emoji}</span>
-                    <span>{count}</span>
+                  <button key={emoji} onClick={() => handleReaction(emoji)}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors ${active ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:text-foreground'}`}>
+                    <span>{emoji}</span><span>{count}</span>
                   </button>
                 );
               })}
             </div>
             <div className="flex items-center gap-4 mt-2">
-              <button
-                onClick={() => navigate(`/post/${post.id}`)}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-              >
-                <MessageCircle className="w-4 h-4" />
-                {post.comment_count}
+              <button onClick={() => navigate(`/post/${post.id}`)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
+                <MessageCircle className="w-4 h-4" />{post.comment_count}
               </button>
-              {isOwner && (
+              {(isOwner || isAdmin) && (
                 <button onClick={handleDelete} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
                   <Trash2 className="w-4 h-4" />
                 </button>
               )}
               {!isOwner && (
                 <>
-                  <button onClick={() => setShowReport(true)} className="text-xs text-muted-foreground hover:text-warning transition-colors">
+                  <button onClick={() => setShowReport(true)} className="text-xs text-muted-foreground hover:text-yellow-400 transition-colors">
                     <Flag className="w-4 h-4" />
                   </button>
                   <button onClick={handleBlock} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
@@ -127,13 +111,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onRefresh }) => {
           </div>
         </div>
       </div>
-
-      <ReportDialog
-        open={showReport}
-        onClose={() => setShowReport(false)}
-        reportedPostId={post.id}
-        reportedUserId={post.user_id}
-      />
+      <ReportDialog open={showReport} onClose={() => setShowReport(false)} reportedPostId={post.id} reportedUserId={post.user_id} />
     </>
   );
 };
