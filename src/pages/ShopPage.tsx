@@ -109,15 +109,7 @@ const ShopPage: React.FC = () => {
 
   const filteredItems = shopItems.filter(i => i.category === accessoryCategory);
 
-  const bubblePreviewColors: Record<string, string> = {
-    'bg-primary': 'hsl(var(--primary))',
-    'bg-blue-600': '#2563eb',
-    'bg-orange-500': '#f97316',
-    'bg-emerald-500': '#10b981',
-    'bg-purple-600': '#9333ea',
-    'bg-pink-400': '#f472b6',
-    'bg-cyan-400': '#22d3ee',
-  };
+  // Use shared utility for preview colors
 
   return (
     <div className="max-w-lg mx-auto">
