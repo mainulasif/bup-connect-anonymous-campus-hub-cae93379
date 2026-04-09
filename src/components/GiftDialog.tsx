@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Flower2, Gift, Heart, Diamond } from 'lucide-react';
+import { Gift } from 'lucide-react';
+import { GIFT_EMOJI } from '@/lib/gifts';
 
 interface GiftType {
   id: string;
@@ -18,13 +18,6 @@ interface GiftDialogProps {
   receiverId: string;
 }
 
-const ICONS: Record<string, React.ReactNode> = {
-  'Black Orchid': <Flower2 className="w-8 h-8" />,
-  'Plushie': <Gift className="w-8 h-8 text-gift-plushie" />,
-  'Heart': <Heart className="w-8 h-8 text-gift-heart" />,
-  'Diamond': <Diamond className="w-8 h-8 text-gift-diamond" />,
-};
-
 const GiftDialog: React.FC<GiftDialogProps> = ({ open, onClose, receiverId }) => {
   const { user, refreshProfile } = useAuth();
   const [giftTypes, setGiftTypes] = useState<GiftType[]>([]);
@@ -32,7 +25,12 @@ const GiftDialog: React.FC<GiftDialogProps> = ({ open, onClose, receiverId }) =>
 
   useEffect(() => {
     if (open) {
-      supabase.from('gift_types').select('*').order('price').then(({ data }) => {
+      supabase.from('gift_types').select('*').order('price').then(({ data, error }) => {
+        if (error) {
+          toast.error('Failed to load gifts');
+          return;
+        }
+
         if (data) setGiftTypes(data);
       });
     }
@@ -79,7 +77,7 @@ const GiftDialog: React.FC<GiftDialogProps> = ({ open, onClose, receiverId }) =>
               disabled={sending}
               className="bg-background border border-border rounded-xl p-4 flex flex-col items-center gap-2 hover:border-primary transition-colors disabled:opacity-50"
             >
-              {ICONS[g.name] || <Gift className="w-8 h-8" />}
+              <span className="text-4xl leading-none">{GIFT_EMOJI[g.name] || '🎁'}</span>
               <span className="text-sm font-medium">{g.name}</span>
               <span className="text-xs text-primary font-bold">{g.price.toLocaleString()} pts</span>
             </button>

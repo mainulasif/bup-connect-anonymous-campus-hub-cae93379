@@ -5,13 +5,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, Send } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
 
 interface Message {
   id: string;
   sender_id: string;
   content: string;
   created_at: string;
-  profiles: { anonymous_name: string } | null;
+  anonymous_name: string;
 }
 
 const ChatPage: React.FC = () => {
@@ -25,17 +26,50 @@ const ChatPage: React.FC = () => {
 
   const fetchMessages = async () => {
     if (!id) return;
-    const { data: conv } = await supabase.from('conversations').select('name').eq('id', id).single();
-    if (conv?.name) setConvName(conv.name);
+    const { data: conv } = await supabase.from('conversations').select('id, name, type').eq('id', id).single();
 
-    const { data } = await supabase
+    if (conv?.type === 'direct' && user) {
+      const { data: members } = await supabase
+        .from('conversation_members')
+        .select('user_id')
+        .eq('conversation_id', id)
+        .neq('user_id', user.id);
+
+      const otherUserId = members?.[0]?.user_id;
+
+      if (otherUserId) {
+        const { data: otherProfile } = await supabase
+          .from('profiles')
+          .select('anonymous_name')
+          .eq('user_id', otherUserId)
+          .single();
+
+        setConvName(otherProfile?.anonymous_name || 'Direct Chat');
+      }
+    } else if (conv?.name) {
+      setConvName(conv.name);
+    }
+
+    const { data, error } = await supabase
       .from('messages')
-      .select('id, sender_id, content, created_at, profiles(anonymous_name)')
+      .select('id, sender_id, content, created_at')
       .eq('conversation_id', id)
       .order('created_at', { ascending: true })
       .limit(100);
-    
-    setMessages((data as any) || []);
+
+    if (error) {
+      toast.error('Failed to load messages');
+      return;
+    }
+
+    const messageRows = data || [];
+    const senderIds = [...new Set(messageRows.map(message => message.sender_id))];
+    const { data: profiles } = senderIds.length
+      ? await supabase.from('profiles').select('user_id, anonymous_name').in('user_id', senderIds)
+      : { data: [] as { user_id: string; anonymous_name: string }[] };
+
+    const nameMap = new Map((profiles || []).map(profile => [profile.user_id, profile.anonymous_name]));
+    setMessages(messageRows.map(message => ({ ...message, anonymous_name: nameMap.get(message.sender_id) || 'Anonymous' })));
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
@@ -56,17 +90,25 @@ const ChatPage: React.FC = () => {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [id]);
+  }, [id, user?.id]);
 
   const handleSend = async () => {
     if (!input.trim() || !user || !id) return;
     const msg = input.trim();
     setInput('');
-    await supabase.from('messages').insert({
+    const { error } = await supabase.from('messages').insert({
       conversation_id: id,
       sender_id: user.id,
       content: msg,
     });
+
+    if (error) {
+      setInput(msg);
+      toast.error('Failed to send message');
+      return;
+    }
+
+    fetchMessages();
   };
 
   return (
@@ -88,7 +130,7 @@ const ChatPage: React.FC = () => {
               }`}>
                 {!isMe && (
                   <p className="text-xs font-medium text-primary mb-0.5">
-                    {m.profiles?.anonymous_name || 'Anonymous'}
+                    {m.anonymous_name}
                   </p>
                 )}
                 <p className="text-sm break-words">{m.content}</p>

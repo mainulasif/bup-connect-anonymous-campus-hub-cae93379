@@ -13,6 +13,8 @@ interface Post {
   created_at: string;
   profiles: { anonymous_name: string; avatar_url: string } | null;
   comment_count: number;
+  reaction_counts: Record<string, number>;
+  viewer_reactions: string[];
 }
 
 const FeedPage: React.FC = () => {
@@ -51,6 +53,24 @@ const FeedPage: React.FC = () => {
       
       const countMap: Record<string, number> = {};
       comments?.forEach(c => { countMap[c.post_id] = (countMap[c.post_id] || 0) + 1; });
+
+      const { data: reactions } = await supabase
+        .from('reactions')
+        .select('post_id, emoji, user_id')
+        .in('post_id', postIds);
+
+      const reactionCountMap: Record<string, Record<string, number>> = {};
+      const viewerReactionMap: Record<string, string[]> = {};
+
+      reactions?.forEach(reaction => {
+        reactionCountMap[reaction.post_id] ??= {};
+        reactionCountMap[reaction.post_id][reaction.emoji] = (reactionCountMap[reaction.post_id][reaction.emoji] || 0) + 1;
+
+        if (reaction.user_id === user?.id) {
+          viewerReactionMap[reaction.post_id] ??= [];
+          viewerReactionMap[reaction.post_id].push(reaction.emoji);
+        }
+      });
       
       // Get blocked users
       const { data: blocks } = await supabase
@@ -63,7 +83,13 @@ const FeedPage: React.FC = () => {
       setPosts(
         data
           .filter(p => !blockedIds.has(p.user_id))
-          .map(p => ({ ...p, profiles: profileMap[p.user_id] || null, comment_count: countMap[p.id] || 0 }))
+          .map(p => ({
+            ...p,
+            profiles: profileMap[p.user_id] || null,
+            comment_count: countMap[p.id] || 0,
+            reaction_counts: reactionCountMap[p.id] || {},
+            viewer_reactions: viewerReactionMap[p.id] || [],
+          }))
       );
     } else {
       setPosts([]);

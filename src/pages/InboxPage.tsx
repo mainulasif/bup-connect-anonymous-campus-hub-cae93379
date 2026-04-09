@@ -16,6 +16,7 @@ interface ConversationItem {
   type: string;
   is_pinned: boolean;
   updated_at: string;
+  is_member: boolean;
 }
 
 const InboxPage: React.FC = () => {
@@ -30,43 +31,81 @@ const InboxPage: React.FC = () => {
 
   const fetchConversations = async () => {
     if (!user) return;
-    const { data: memberships } = await supabase
+    setLoading(true);
+
+    const { data: memberships, error: membershipsError } = await supabase
       .from('conversation_members')
-      .select('conversation_id, is_pinned, conversations(id, name, type, updated_at)')
+      .select('conversation_id, is_pinned')
       .eq('user_id', user.id);
 
-    if (memberships) {
-      const convs: ConversationItem[] = memberships.map((m: any) => ({
-        id: m.conversations.id,
-        name: m.conversations.name,
-        type: m.conversations.type,
-        is_pinned: m.is_pinned,
-        updated_at: m.conversations.updated_at,
-      }));
-      setConversations(convs);
+    if (membershipsError) {
+      toast.error('Failed to load inbox');
+      setLoading(false);
+      return;
     }
 
-    // Also fetch public groups user hasn't joined
-    if (tab === 'featured') {
-      const { data: publicGroups } = await supabase
-        .from('conversations')
-        .select('id, name, type, updated_at')
-        .eq('type', 'public_group');
+    const membershipRows = memberships || [];
+    const membershipMap = new Map(membershipRows.map(row => [row.conversation_id, row.is_pinned]));
+    const memberIds = membershipRows.map(row => row.conversation_id);
 
-      if (publicGroups) {
-        const existingIds = new Set(conversations.map(c => c.id));
-        const newPublic = publicGroups
-          .filter(g => !existingIds.has(g.id))
-          .map(g => ({ ...g, is_pinned: false }));
-        setConversations(prev => {
-          const merged = [...prev];
-          newPublic.forEach(np => {
-            if (!merged.find(m => m.id === np.id)) merged.push(np);
-          });
-          return merged;
-        });
+    const [memberConversationsResult, publicGroupsResult] = await Promise.all([
+      memberIds.length
+        ? supabase.from('conversations').select('id, name, type, updated_at').in('id', memberIds)
+        : Promise.resolve({ data: [] as { id: string; name: string | null; type: string; updated_at: string }[], error: null }),
+      supabase.from('conversations').select('id, name, type, updated_at').eq('type', 'public_group').order('updated_at', { ascending: false }),
+    ]);
+
+    const baseConversations: ConversationItem[] = (memberConversationsResult.data || []).map(conversation => ({
+      ...conversation,
+      is_pinned: membershipMap.get(conversation.id) || false,
+      is_member: true,
+    }));
+
+    const directConversationIds = baseConversations.filter(conversation => conversation.type === 'direct').map(conversation => conversation.id);
+
+    if (directConversationIds.length) {
+      const { data: allMembers } = await supabase
+        .from('conversation_members')
+        .select('conversation_id, user_id')
+        .in('conversation_id', directConversationIds);
+
+      const otherUserIds = [...new Set((allMembers || []).filter(member => member.user_id !== user.id).map(member => member.user_id))];
+      const { data: profiles } = otherUserIds.length
+        ? await supabase.from('profiles').select('user_id, anonymous_name').in('user_id', otherUserIds)
+        : { data: [] as { user_id: string; anonymous_name: string }[] };
+
+      const profileMap = new Map((profiles || []).map(profile => [profile.user_id, profile.anonymous_name]));
+      const directNameMap = new Map<string, string>();
+
+      (allMembers || []).forEach(member => {
+        if (member.user_id !== user.id && !directNameMap.has(member.conversation_id)) {
+          directNameMap.set(member.conversation_id, profileMap.get(member.user_id) || 'Direct Chat');
+        }
+      });
+
+      baseConversations.forEach(conversation => {
+        if (conversation.type === 'direct') {
+          conversation.name = directNameMap.get(conversation.id) || 'Direct Chat';
+        }
+      });
+    }
+
+    const merged = [...baseConversations];
+    (publicGroupsResult.data || []).forEach(group => {
+      const existing = merged.find(conversation => conversation.id === group.id);
+
+      if (existing) {
+        existing.name = group.name;
+        existing.updated_at = group.updated_at;
+        existing.type = group.type;
+        return;
       }
-    }
+
+      merged.push({ ...group, is_pinned: false, is_member: false });
+    });
+
+    merged.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+    setConversations(merged);
 
     setLoading(false);
   };
@@ -75,49 +114,89 @@ const InboxPage: React.FC = () => {
 
   const filtered = conversations.filter(c => {
     if (tab === 'featured') return c.type === 'public_group';
-    if (tab === 'private') return c.type === 'direct' || c.type === 'private_group';
-    if (tab === 'pinned') return c.is_pinned;
+    if (tab === 'private') return c.is_member && (c.type === 'direct' || c.type === 'private_group');
+    if (tab === 'pinned') return c.is_member && c.is_pinned;
     return true;
   });
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim() || !user) return;
     const type = isPrivateGroup ? 'private_group' : 'public_group';
-    const { data, error } = await supabase
+    const conversationId = crypto.randomUUID();
+    const { error: conversationError } = await supabase
       .from('conversations')
-      .insert({ name: newGroupName.trim(), type, created_by: user.id })
-      .select()
-      .single();
-    
-    if (data) {
-      await supabase.from('conversation_members').insert({
-        conversation_id: data.id,
-        user_id: user.id,
-      });
-      toast.success('Group created!');
-      setNewGroupName('');
-      setShowCreate(false);
-      fetchConversations();
+      .insert({ id: conversationId, name: newGroupName.trim(), type, created_by: user.id });
+
+    if (conversationError) {
+      toast.error('Failed to create group');
+      return;
     }
+
+    const { error: membershipError } = await supabase.from('conversation_members').insert({
+      conversation_id: conversationId,
+      user_id: user.id,
+    });
+
+    if (membershipError) {
+      toast.error('Group created but joining failed');
+      return;
+    }
+
+    toast.success('Group created!');
+    setNewGroupName('');
+    setShowCreate(false);
+    fetchConversations();
+    navigate(`/chat/${conversationId}`);
   };
 
   const handlePin = async (convId: string, currentlyPinned: boolean) => {
     if (!user) return;
-    await supabase
-      .from('conversation_members')
-      .update({ is_pinned: !currentlyPinned })
-      .eq('conversation_id', convId)
-      .eq('user_id', user.id);
+
+    const conversation = conversations.find(item => item.id === convId);
+    if (!conversation) return;
+
+    if (!conversation.is_member) {
+      const { error } = await supabase.from('conversation_members').insert({
+        conversation_id: convId,
+        user_id: user.id,
+        is_pinned: true,
+      });
+
+      if (error) {
+        toast.error('Failed to pin chat');
+        return;
+      }
+    } else {
+      const { error } = await supabase
+        .from('conversation_members')
+        .update({ is_pinned: !currentlyPinned })
+        .eq('conversation_id', convId)
+        .eq('user_id', user.id);
+
+      if (error) {
+        toast.error('Failed to update pin');
+        return;
+      }
+    }
+
     fetchConversations();
   };
 
   const handleJoinGroup = async (convId: string) => {
     if (!user) return;
-    await supabase.from('conversation_members').insert({
+
+    const { error } = await supabase.from('conversation_members').insert({
       conversation_id: convId,
       user_id: user.id,
     });
+
+    if (error) {
+      toast.error('Failed to join group');
+      return;
+    }
+
     toast.success('Joined group!');
+    fetchConversations();
     navigate(`/chat/${convId}`);
   };
 
@@ -183,14 +262,12 @@ const InboxPage: React.FC = () => {
           </div>
         ) : (
           filtered.map(c => {
-            const isMember = conversations.some(mc => mc.id === c.id && (mc.type === 'direct' || mc.type === 'private_group' || mc.is_pinned || mc.type === 'public_group'));
             return (
               <div
                 key={c.id}
                 className="flex items-center gap-3 p-4 hover:bg-card/50 transition-colors cursor-pointer"
                 onClick={() => {
-                  const memberConv = conversations.find(mc => mc.id === c.id);
-                  if (memberConv) {
+                  if (c.is_member) {
                     navigate(`/chat/${c.id}`);
                   } else {
                     handleJoinGroup(c.id);
@@ -203,7 +280,7 @@ const InboxPage: React.FC = () => {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{c.name || 'Direct Chat'}</p>
                   <p className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(c.updated_at), { addSuffix: true })}
+                    {c.is_member ? formatDistanceToNow(new Date(c.updated_at), { addSuffix: true }) : 'Tap to join'}
                   </p>
                 </div>
                 <button

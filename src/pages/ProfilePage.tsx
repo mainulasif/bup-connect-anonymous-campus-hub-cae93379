@@ -4,10 +4,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { LogOut, Settings, Shield, Flower2, Heart, Diamond, Gift } from 'lucide-react';
+import { LogOut, Settings, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import GiftDialog from '@/components/GiftDialog';
+import { PROFILE_GIFT_FIELDS } from '@/lib/gifts';
+
+interface BlockedUser {
+  blocked_id: string;
+  anonymous_name: string;
+}
 
 const ProfilePage: React.FC = () => {
   const { user, profile, isAdmin, signOut, refreshProfile } = useAuth();
@@ -15,14 +20,46 @@ const ProfilePage: React.FC = () => {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
-  const [showGift, setShowGift] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
 
   useEffect(() => {
     if (profile) {
       setName(profile.anonymous_name);
-      setBio(profile.bio);
+      setBio(profile.bio || '');
     }
   }, [profile]);
+
+  const fetchBlockedUsers = async () => {
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('blocks')
+      .select('blocked_id')
+      .eq('blocker_id', user.id);
+
+    if (error) {
+      toast.error('Failed to load blocked users');
+      return;
+    }
+
+    const blockedIds = (data || []).map(item => item.blocked_id);
+    if (!blockedIds.length) {
+      setBlockedUsers([]);
+      return;
+    }
+
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('user_id, anonymous_name')
+      .in('user_id', blockedIds);
+
+    const profileMap = new Map((profiles || []).map(item => [item.user_id, item.anonymous_name]));
+    setBlockedUsers(blockedIds.map(blockedId => ({ blocked_id: blockedId, anonymous_name: profileMap.get(blockedId) || 'Anonymous' })));
+  };
+
+  useEffect(() => {
+    fetchBlockedUsers();
+  }, [user]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -38,14 +75,25 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  if (!profile) return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
+  const handleUnblock = async (blockedId: string) => {
+    if (!user) return;
 
-  const gifts = [
-    { name: 'Black Orchid', count: profile.gift_black_orchid, icon: <Flower2 className="w-6 h-6" />, color: 'text-foreground' },
-    { name: 'Plushie', count: profile.gift_plushie, icon: <Gift className="w-6 h-6" />, color: 'text-gift-plushie' },
-    { name: 'Heart', count: profile.gift_heart, icon: <Heart className="w-6 h-6" />, color: 'text-gift-heart' },
-    { name: 'Diamond', count: profile.gift_diamond, icon: <Diamond className="w-6 h-6" />, color: 'text-gift-diamond' },
-  ];
+    const { error } = await supabase
+      .from('blocks')
+      .delete()
+      .eq('blocker_id', user.id)
+      .eq('blocked_id', blockedId);
+
+    if (error) {
+      toast.error('Failed to unblock user');
+      return;
+    }
+
+    toast.success('User unblocked');
+    fetchBlockedUsers();
+  };
+
+  if (!profile) return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
 
   return (
     <div className="max-w-lg mx-auto">
@@ -77,7 +125,10 @@ const ProfilePage: React.FC = () => {
               maxLength={30}
             />
           ) : (
-            <h2 className="text-xl font-bold">{profile.anonymous_name}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bold">{profile.anonymous_name}</h2>
+              {isAdmin && <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">Admin</span>}
+            </div>
           )}
         </div>
 
@@ -89,11 +140,11 @@ const ProfilePage: React.FC = () => {
 
         {/* Gift boxes - always show 4 */}
         <div className="grid grid-cols-4 gap-2">
-          {gifts.map(g => (
-            <div key={g.name} className="bg-card rounded-lg p-3 text-center border border-border">
-              <div className={`flex justify-center mb-1 ${g.color}`}>{g.icon}</div>
-              <p className="text-lg font-bold">{g.count}</p>
-              <p className="text-[10px] text-muted-foreground">{g.name}</p>
+          {PROFILE_GIFT_FIELDS.map(gift => (
+            <div key={gift.name} className="bg-card rounded-lg p-3 text-center border border-border">
+              <div className="flex justify-center mb-1 text-2xl leading-none">{gift.emoji}</div>
+              <p className="text-lg font-bold">{profile[gift.key].toLocaleString()}</p>
+              <p className="text-[10px] text-muted-foreground">{gift.name}</p>
             </div>
           ))}
         </div>
@@ -125,15 +176,35 @@ const ProfilePage: React.FC = () => {
               <Button onClick={() => setEditing(true)} variant="secondary" className="flex-1">
                 <Settings className="w-4 h-4 mr-1" /> Edit Profile
               </Button>
-              <Button onClick={() => setShowGift(true)} variant="outline" className="flex-1">
-                <Gift className="w-4 h-4 mr-1" /> Send Gift
-              </Button>
+              <Button onClick={() => navigate('/inbox')} variant="outline" className="flex-1">Open Inbox</Button>
             </>
           )}
         </div>
-      </div>
 
-      <GiftDialog open={showGift} onClose={() => setShowGift(false)} receiverId={user?.id || ''} />
+        <section className="space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold">Blocked users</h3>
+            <p className="text-xs text-muted-foreground">Manage who you have blocked.</p>
+          </div>
+
+          <div className="space-y-2">
+            {blockedUsers.length === 0 ? (
+              <div className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">No blocked users.</div>
+            ) : (
+              blockedUsers.map(blockedUser => (
+                <div key={blockedUser.blocked_id} className="flex items-center justify-between rounded-lg border border-border bg-card p-4">
+                  <button onClick={() => navigate(`/user/${blockedUser.blocked_id}`)} className="text-sm font-medium hover:text-primary transition-colors">
+                    {blockedUser.anonymous_name}
+                  </button>
+                  <Button variant="outline" size="sm" onClick={() => handleUnblock(blockedUser.blocked_id)}>
+                    Unblock
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      </div>
     </div>
   );
 };
