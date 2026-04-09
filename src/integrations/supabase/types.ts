@@ -338,6 +338,50 @@ export type Database = {
           },
         ]
       }
+      media_reports: {
+        Row: {
+          admin_note: string | null
+          created_at: string
+          id: string
+          media_url: string
+          message_id: string | null
+          reason: string
+          reporter_id: string
+          resolved_at: string | null
+          status: string
+        }
+        Insert: {
+          admin_note?: string | null
+          created_at?: string
+          id?: string
+          media_url: string
+          message_id?: string | null
+          reason?: string
+          reporter_id: string
+          resolved_at?: string | null
+          status?: string
+        }
+        Update: {
+          admin_note?: string | null
+          created_at?: string
+          id?: string
+          media_url?: string
+          message_id?: string | null
+          reason?: string
+          reporter_id?: string
+          resolved_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_reports_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           content: string
@@ -346,6 +390,7 @@ export type Database = {
           deleted_by_users: string[] | null
           id: string
           is_deleted_for_all: boolean | null
+          reply_to_id: string | null
           sender_id: string
         }
         Insert: {
@@ -355,6 +400,7 @@ export type Database = {
           deleted_by_users?: string[] | null
           id?: string
           is_deleted_for_all?: boolean | null
+          reply_to_id?: string | null
           sender_id: string
         }
         Update: {
@@ -364,6 +410,7 @@ export type Database = {
           deleted_by_users?: string[] | null
           id?: string
           is_deleted_for_all?: boolean | null
+          reply_to_id?: string | null
           sender_id?: string
         }
         Relationships: [
@@ -372,6 +419,13 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_reply_to_id_fkey"
+            columns: ["reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
             referencedColumns: ["id"]
           },
         ]
@@ -576,6 +630,35 @@ export type Database = {
         }
         Relationships: []
       }
+      purchased_bubble_colors: {
+        Row: {
+          color_id: string
+          id: string
+          purchased_at: string
+          user_id: string
+        }
+        Insert: {
+          color_id: string
+          id?: string
+          purchased_at?: string
+          user_id: string
+        }
+        Update: {
+          color_id?: string
+          id?: string
+          purchased_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchased_bubble_colors_color_id_fkey"
+            columns: ["color_id"]
+            isOneToOne: false
+            referencedRelation: "bubble_colors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reactions: {
         Row: {
           created_at: string
@@ -692,6 +775,65 @@ export type Database = {
         }
         Relationships: []
       }
+      sticker_pack_stickers: {
+        Row: {
+          created_at: string
+          emoji: string
+          id: string
+          label: string
+          pack_id: string
+        }
+        Insert: {
+          created_at?: string
+          emoji: string
+          id?: string
+          label?: string
+          pack_id: string
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          id?: string
+          label?: string
+          pack_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sticker_pack_stickers_pack_id_fkey"
+            columns: ["pack_id"]
+            isOneToOne: false
+            referencedRelation: "sticker_packs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sticker_packs: {
+        Row: {
+          created_at: string
+          icon_url: string
+          id: string
+          is_free: boolean
+          name: string
+          price: number
+        }
+        Insert: {
+          created_at?: string
+          icon_url?: string
+          id?: string
+          is_free?: boolean
+          name: string
+          price?: number
+        }
+        Update: {
+          created_at?: string
+          icon_url?: string
+          id?: string
+          is_free?: boolean
+          name?: string
+          price?: number
+        }
+        Relationships: []
+      }
       subscriptions: {
         Row: {
           amount: number
@@ -778,6 +920,35 @@ export type Database = {
         }
         Relationships: []
       }
+      user_sticker_packs: {
+        Row: {
+          id: string
+          pack_id: string
+          purchased_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          pack_id: string
+          purchased_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          pack_id?: string
+          purchased_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_sticker_packs_pack_id_fkey"
+            columns: ["pack_id"]
+            isOneToOne: false
+            referencedRelation: "sticker_packs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -824,6 +995,7 @@ export type Database = {
       is_user_banned: { Args: { _user_id: string }; Returns: boolean }
       purchase_bubble_color: { Args: { p_color_id: string }; Returns: Json }
       purchase_item: { Args: { p_item_id: string }; Returns: Json }
+      purchase_sticker_pack: { Args: { p_pack_id: string }; Returns: Json }
       send_gift: {
         Args: {
           p_gift_type_id: string
