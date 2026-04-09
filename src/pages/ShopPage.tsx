@@ -241,7 +241,11 @@ const ShopPage: React.FC = () => {
                     const owned = ownedPackIds.has(pack.id) || pack.is_free;
                     return (
                       <div key={pack.id} className={`rounded-xl border p-4 text-center space-y-2 ${owned ? 'border-green-500/30 bg-green-500/5' : 'border-border bg-card'}`}>
-                        <div className="text-4xl leading-none">{pack.icon_url}</div>
+                        {pack.icon_url.startsWith('/') || pack.icon_url.endsWith('.svg') || pack.icon_url.endsWith('.png') ? (
+                          <img src={pack.icon_url} alt={pack.name} className="w-16 h-16 mx-auto object-contain" />
+                        ) : (
+                          <div className="text-4xl leading-none">{pack.icon_url}</div>
+                        )}
                         <p className="text-sm font-medium">{pack.name}</p>
                         <p className="text-xs font-bold text-primary">{pack.is_free ? 'Free' : `${pack.price.toLocaleString()} pts`}</p>
                         {owned ? (
