@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <radialGradient id="bg_chimera_love" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#C62828" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#C62828" stop-opacity="0.05"/>
+    </radialGradient>
+  </defs>
+  <circle cx="60" cy="55" r="45" fill="url(#bg_chimera_love)" stroke="#C62828" stroke-width="2" opacity="0.6"/>
+  <ellipse cx="60" cy="58" rx="28" ry="30" fill="#C62828" opacity="0.85"/>
+  <ellipse cx="60" cy="65" rx="18" ry="20" fill="#880E4F" opacity="0.3"/>
+  <circle cx="42" cy="32" r="8" fill="#C62828" opacity="0.6"/><circle cx="78" cy="32" r="8" fill="#C62828" opacity="0.6"/>
+  <path d="M46,46 C46,42 52,42 50,47 C48,42 54,42 54,46" fill="#E91E63"/><path d="M66,46 C66,42 72,42 70,47 C68,42 74,42 74,46" fill="#E91E63"/>
+  <path d="M52,58 Q60,66 68,58" fill="#E91E63" stroke="#222" stroke-width="1"/>
+  <path d="M30,30 C30,24 38,24 34,32 C30,24 38,24 38,30" fill="#E91E63" opacity="0.6"/><path d="M78,25 C78,21 84,21 81,28 C78,21 84,21 84,25" fill="#E91E63" opacity="0.4"/>
+  <text x="60" y="108" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" font-weight="bold" fill="#E91E63">Love</text>
+</svg>
