@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Trash2, Ban, X, Eye, Clock, Shield, Users, Gavel, FileText, Download, Lock, BanIcon, Search } from 'lucide-react';
+import { ArrowLeft, Trash2, Ban, X, Eye, Clock, Shield, Users, Gavel, FileText, Download, Lock, Search, ShieldCheck, ShieldOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { BAN_DURATIONS } from '@/lib/constants';
@@ -27,7 +27,7 @@ interface Appeal {
 }
 interface UserResult {
   user_id: string; anonymous_name: string; username: string;
-  avatar_id: number; points: number; is_banned: boolean; is_jailed: boolean;
+  avatar_id: number; points: number; is_banned: boolean; is_jailed: boolean; is_admin: boolean;
 }
 
 type Tab = 'reports' | 'users' | 'audit' | 'appeals';
@@ -44,7 +44,6 @@ const AdminPage: React.FC = () => {
   const [banDuration, setBanDuration] = useState(1440);
   const [banReason, setBanReason] = useState('');
   const [punishAction, setPunishAction] = useState<'ban' | 'jail'>('ban');
-  // Users tab state
   const [userSearch, setUserSearch] = useState('');
   const [userResults, setUserResults] = useState<UserResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -104,7 +103,7 @@ const AdminPage: React.FC = () => {
     if (!userSearch.trim()) return;
     setSearchLoading(true);
     const { data } = await supabase.from('profiles')
-      .select('user_id, anonymous_name, username, avatar_id, points, is_banned, is_jailed')
+      .select('user_id, anonymous_name, username, avatar_id, points, is_banned, is_jailed, is_admin')
       .or(`anonymous_name.ilike.%${userSearch}%,username.ilike.%${userSearch}%`)
       .limit(20);
     setUserResults((data || []) as UserResult[]);
@@ -112,11 +111,11 @@ const AdminPage: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!isAdmin) { navigate('/'); return; }
+    if (!isAdmin && !isFounder) { navigate('/'); return; }
     if (tab === 'reports') fetchReports();
     if (tab === 'audit') fetchAuditLog();
     if (tab === 'appeals') fetchAppeals();
-  }, [isAdmin, tab, reportFilter]);
+  }, [isAdmin, isFounder, tab, reportFilter]);
 
   const handleReportAction = async (reportId: string, action: 'dismiss' | 'action') => {
     const report = reports.find(r => r.id === reportId);
@@ -147,11 +146,13 @@ const AdminPage: React.FC = () => {
   const handlePunish = async () => {
     if (!banDialog || !user || !banReason.trim()) { toast.error('Reason is required'); return; }
     const duration = banDuration === 0 ? null : banDuration;
-    const { error } = await supabase.rpc('admin_punish_user', {
+    const { data, error } = await supabase.rpc('admin_punish_user', {
       _admin_id: user.id, _target_user_id: banDialog.userId, _action: punishAction,
       _duration_minutes: duration, _reason: banReason,
     });
     if (error) { toast.error('Failed: ' + error.message); return; }
+    const result = data as any;
+    if (result && !result.success) { toast.error(result.error || 'Failed'); return; }
     toast.success(`User ${punishAction === 'ban' ? 'banned' : 'jailed'}`);
     setBanDialog(null); setBanReason('');
     if (tab === 'reports') fetchReports();
@@ -182,6 +183,30 @@ const AdminPage: React.FC = () => {
     fetchAppeals();
   };
 
+  const handlePromoteAdmin = async (targetUserId: string) => {
+    if (!user) return;
+    const { data, error } = await supabase.rpc('founder_promote_admin', {
+      _founder_id: user.id, _target_user_id: targetUserId,
+    });
+    if (error) { toast.error('Failed: ' + error.message); return; }
+    const result = data as any;
+    if (result && !result.success) { toast.error(result.error || 'Failed'); return; }
+    toast.success('User promoted to Admin!');
+    handleSearchUsers();
+  };
+
+  const handleDemoteAdmin = async (targetUserId: string) => {
+    if (!user) return;
+    const { data, error } = await supabase.rpc('founder_demote_admin', {
+      _founder_id: user.id, _target_user_id: targetUserId,
+    });
+    if (error) { toast.error('Failed: ' + error.message); return; }
+    const result = data as any;
+    if (result && !result.success) { toast.error(result.error || 'Failed'); return; }
+    toast.success('Admin role removed');
+    handleSearchUsers();
+  };
+
   const handleExportAudit = () => {
     const csv = 'Time,Actor,Action,Target,Details\n' + auditLog.map(e =>
       `"${new Date(e.created_at).toISOString()}","${e.actor_name}","${e.action}","${e.target_name || ''}","${JSON.stringify(e.details || {})}"`
@@ -192,7 +217,7 @@ const AdminPage: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  if (!isAdmin) return null;
+  if (!isAdmin && !isFounder) return null;
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: 'reports', label: 'Reports', icon: <Eye className="w-4 h-4" /> },
@@ -282,14 +307,25 @@ const AdminPage: React.FC = () => {
                   <p className="text-sm font-medium truncate">{u.anonymous_name}</p>
                   <p className="text-[10px] text-muted-foreground">@{u.username} · {u.points.toLocaleString()} pts</p>
                   <div className="flex gap-1 mt-0.5">
+                    {u.is_admin && <span className="text-[9px] bg-primary/20 text-primary rounded px-1">Admin</span>}
                     {u.is_banned && <span className="text-[9px] bg-red-500/20 text-red-400 rounded px-1">Banned</span>}
                     {u.is_jailed && <span className="text-[9px] bg-yellow-500/20 text-yellow-400 rounded px-1">Jailed</span>}
                   </div>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex gap-1 flex-wrap">
                   <Button size="sm" variant="destructive" onClick={() => setBanDialog({ userId: u.user_id, name: u.anonymous_name })}>
                     <Ban className="w-3 h-3 mr-1" /> Punish
                   </Button>
+                  {isFounder && !u.is_admin && (
+                    <Button size="sm" variant="outline" onClick={() => handlePromoteAdmin(u.user_id)}>
+                      <ShieldCheck className="w-3 h-3 mr-1" /> Make Admin
+                    </Button>
+                  )}
+                  {isFounder && u.is_admin && (
+                    <Button size="sm" variant="ghost" onClick={() => handleDemoteAdmin(u.user_id)}>
+                      <ShieldOff className="w-3 h-3 mr-1" /> Remove Admin
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" onClick={() => navigate(`/user/${u.user_id}`)}>
                     <Eye className="w-3 h-3" />
                   </Button>
