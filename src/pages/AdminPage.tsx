@@ -250,6 +250,54 @@ const AdminPage: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const renderUserCard = (u: UserResult) => (
+    <div key={u.user_id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card">
+      <AvatarImg avatarId={u.avatar_id || 1} size="sm" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">{u.anonymous_name}</p>
+        <p className="text-[10px] text-muted-foreground">@{u.username} · {u.points.toLocaleString()} pts</p>
+        <div className="flex gap-1 mt-0.5">
+          {u.is_admin && <span className="text-[9px] bg-primary/20 text-primary rounded px-1">Admin</span>}
+          {u.is_banned && <span className="text-[9px] bg-destructive/20 text-destructive rounded px-1">Banned</span>}
+          {u.is_jailed && <span className="text-[9px] bg-yellow-500/20 text-yellow-400 rounded px-1">Jailed</span>}
+        </div>
+      </div>
+      <div className="flex gap-1 flex-wrap">
+        {u.is_banned ? (
+          <Button size="sm" variant="outline" onClick={() => handleUnpunish(u.user_id, 'unban')}>
+            <Ban className="w-3 h-3 mr-1" /> Unban
+          </Button>
+        ) : (
+          <Button size="sm" variant="destructive" onClick={() => { setPunishAction('ban'); setBanDialog({ userId: u.user_id, name: u.anonymous_name }); }}>
+            <Ban className="w-3 h-3 mr-1" /> Ban
+          </Button>
+        )}
+        {u.is_jailed ? (
+          <Button size="sm" variant="outline" onClick={() => handleUnpunish(u.user_id, 'unjail')}>
+            <Lock className="w-3 h-3 mr-1" /> Unjail
+          </Button>
+        ) : (
+          <Button size="sm" variant="destructive" onClick={() => { setPunishAction('jail'); setBanDialog({ userId: u.user_id, name: u.anonymous_name }); }}>
+            <Lock className="w-3 h-3 mr-1" /> Jail
+          </Button>
+        )}
+        {isFounder && !u.is_admin && (
+          <Button size="sm" variant="outline" onClick={() => handlePromoteAdmin(u.user_id)}>
+            <ShieldCheck className="w-3 h-3 mr-1" /> Make Admin
+          </Button>
+        )}
+        {isFounder && u.is_admin && (
+          <Button size="sm" variant="ghost" onClick={() => handleDemoteAdmin(u.user_id)}>
+            <ShieldOff className="w-3 h-3 mr-1" /> Remove Admin
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" onClick={() => navigate(`/user/${u.user_id}`)}>
+          <Eye className="w-3 h-3" />
+        </Button>
+      </div>
+    </div>
+  );
+
   if (!isAdmin && !isFounder) return null;
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
