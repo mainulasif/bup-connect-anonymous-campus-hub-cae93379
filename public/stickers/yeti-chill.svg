@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <radialGradient id="bg_yeti_chill" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#E0E0E0" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#E0E0E0" stop-opacity="0.05"/>
+    </radialGradient>
+  </defs>
+  <circle cx="60" cy="55" r="45" fill="url(#bg_yeti_chill)" stroke="#E0E0E0" stroke-width="2" opacity="0.6"/>
+  <ellipse cx="60" cy="58" rx="28" ry="30" fill="#E0E0E0" opacity="0.85"/>
+  <ellipse cx="60" cy="65" rx="18" ry="20" fill="#BDBDBD" opacity="0.3"/>
+  <circle cx="42" cy="32" r="8" fill="#E0E0E0" opacity="0.6"/><circle cx="78" cy="32" r="8" fill="#E0E0E0" opacity="0.6"/>
+  <rect x="44" y="45" width="14" height="5" rx="2" fill="#222" opacity="0.7"/><rect x="64" y="45" width="14" height="5" rx="2" fill="#222" opacity="0.7"/>
+  <path d="M52,58 Q60,63 68,58" fill="none" stroke="#222" stroke-width="1.5"/>
+  
+  <text x="60" y="108" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" font-weight="bold" fill="#00BCD4">Chill</text>
+</svg>
