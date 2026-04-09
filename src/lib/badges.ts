@@ -1,19 +1,19 @@
 export interface Badge {
   key: string;
   label: string;
-  emoji: string;
-  color: string; // tailwind class
+  iconName: string;
+  color: string;
 }
 
 export const ALL_BADGES: Badge[] = [
-  { key: 'founder', label: 'Founder', emoji: '👑', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
-  { key: 'admin', label: 'Admin', emoji: '🛡️', color: 'bg-primary/20 text-primary border-primary/30' },
-  { key: 'creator', label: 'Creator', emoji: '⭐', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
-  { key: 'moderator', label: 'Mod', emoji: '🔧', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
-  { key: 'premium', label: 'Premium', emoji: '💎', color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' },
-  { key: 'jailed', label: 'Jailed', emoji: '⛓️', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
-  { key: 'muted', label: 'Muted', emoji: '🔇', color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' },
-  { key: 'banned', label: 'Banned', emoji: '🚫', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
+  { key: 'founder', label: 'Founder', iconName: 'Crown', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
+  { key: 'admin', label: 'Admin', iconName: 'ShieldCheck', color: 'bg-primary/20 text-primary border-primary/30' },
+  { key: 'creator', label: 'Creator', iconName: 'Star', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
+  { key: 'moderator', label: 'Mod', iconName: 'Wrench', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+  { key: 'premium', label: 'Premium', iconName: 'Gem', color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' },
+  { key: 'jailed', label: 'Jailed', iconName: 'Lock', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
+  { key: 'muted', label: 'Muted', iconName: 'VolumeX', color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' },
+  { key: 'banned', label: 'Banned', iconName: 'Ban', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
 ];
 
 export const FOUNDER_EMAIL = '2252421086@student.bup.edu.bd';
