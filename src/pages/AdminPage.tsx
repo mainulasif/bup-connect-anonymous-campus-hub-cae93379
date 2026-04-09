@@ -172,6 +172,7 @@ const AdminPage: React.FC = () => {
     handleSearchUsers();
   };
 
+  const handleAppealResponse = async (appealId: string, approved: boolean) => {
     const appeal = appeals.find(a => a.id === appealId);
     if (!appeal || !user) return;
     if (approved) {
