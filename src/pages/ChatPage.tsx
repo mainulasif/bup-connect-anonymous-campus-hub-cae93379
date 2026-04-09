@@ -241,7 +241,7 @@ const ChatPage: React.FC = () => {
     return bg.startsWith('linear') ? { background: bg } : { backgroundColor: bg };
   };
 
-  const isImageContent = (content: string) => content.startsWith('/stickers/');
+  const isImageContent = (content: string) => content.startsWith('/stickers/') || content.startsWith('/avatars/');
   const isPrivateChat = convType === 'direct';
 
   return (
