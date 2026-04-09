@@ -16,9 +16,10 @@ interface GiftDialogProps {
   open: boolean;
   onClose: () => void;
   receiverId: string;
+  conversationId?: string;
 }
 
-const GiftDialog: React.FC<GiftDialogProps> = ({ open, onClose, receiverId }) => {
+const GiftDialog: React.FC<GiftDialogProps> = ({ open, onClose, receiverId, conversationId }) => {
   const { user, refreshProfile } = useAuth();
   const [giftTypes, setGiftTypes] = useState<GiftType[]>([]);
   const [sending, setSending] = useState(false);
@@ -26,11 +27,7 @@ const GiftDialog: React.FC<GiftDialogProps> = ({ open, onClose, receiverId }) =>
   useEffect(() => {
     if (open) {
       supabase.from('gift_types').select('*').order('price').then(({ data, error }) => {
-        if (error) {
-          toast.error('Failed to load gifts');
-          return;
-        }
-
+        if (error) { toast.error('Failed to load gifts'); return; }
         if (data) setGiftTypes(data);
       });
     }
@@ -42,11 +39,9 @@ const GiftDialog: React.FC<GiftDialogProps> = ({ open, onClose, receiverId }) =>
     if (!user) return;
     setSending(true);
     const { data, error } = await supabase.rpc('send_gift', {
-      p_sender_id: user.id,
-      p_receiver_id: receiverId,
-      p_gift_type_id: giftTypeId,
+      p_sender_id: user.id, p_receiver_id: receiverId, p_gift_type_id: giftTypeId,
     });
-    
+
     if (error) {
       toast.error('Failed to send gift');
     } else {
@@ -54,6 +49,19 @@ const GiftDialog: React.FC<GiftDialogProps> = ({ open, onClose, receiverId }) =>
       if (result?.success) {
         toast.success(`Gift sent! -${result.points_deducted} points`);
         refreshProfile();
+
+        // Post gift announcement in chat if conversationId provided
+        if (conversationId) {
+          const gift = giftTypes.find(g => g.id === giftTypeId);
+          const { data: receiverProfile } = await supabase.from('profiles').select('anonymous_name').eq('user_id', receiverId).single();
+          const { data: senderProfile } = await supabase.from('profiles').select('anonymous_name').eq('user_id', user.id).single();
+          const giftEmoji = GIFT_EMOJI[gift?.name || ''] || '🎁';
+          const msg = `${giftEmoji} ${senderProfile?.anonymous_name || 'Someone'} sent ${receiverProfile?.anonymous_name || 'someone'} a ${gift?.name || 'gift'}!`;
+          await supabase.from('messages').insert({
+            conversation_id: conversationId, sender_id: user.id, content: msg,
+          });
+        }
+
         onClose();
       } else {
         toast.error(result?.error || 'Failed to send gift');
@@ -71,12 +79,8 @@ const GiftDialog: React.FC<GiftDialogProps> = ({ open, onClose, receiverId }) =>
         </div>
         <div className="grid grid-cols-2 gap-3">
           {giftTypes.map(g => (
-            <button
-              key={g.id}
-              onClick={() => handleSend(g.id)}
-              disabled={sending}
-              className="bg-background border border-border rounded-xl p-4 flex flex-col items-center gap-2 hover:border-primary transition-colors disabled:opacity-50"
-            >
+            <button key={g.id} onClick={() => handleSend(g.id)} disabled={sending}
+              className="bg-background border border-border rounded-xl p-4 flex flex-col items-center gap-2 hover:border-primary transition-colors disabled:opacity-50">
               <span className="text-4xl leading-none">{GIFT_EMOJI[g.name] || '🎁'}</span>
               <span className="text-sm font-medium">{g.name}</span>
               <span className="text-xs text-primary font-bold">{g.price.toLocaleString()} pts</span>

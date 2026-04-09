@@ -1,1 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="32" fill="#991b1b"/><path d="M16 28h32l-4-8H20z" fill="#7f1d1d"/><circle cx="32" cy="34" r="10" fill="#fbbf24"/><rect x="22" y="32" width="20" height="4" rx="1" fill="#7f1d1d"/><circle cx="28" cy="33" r="1.5" fill="#18181b"/><circle cx="36" cy="33" r="1.5" fill="#18181b"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="32" fill="#7f1d1d"/>
+  <!-- helmet -->
+  <path d="M14 30 Q14 12 32 10 Q50 12 50 30 Z" fill="#991b1b"/>
+  <path d="M16 30 Q16 14 32 12 Q48 14 48 30 Z" fill="#b91c1c"/>
+  <!-- crest -->
+  <path d="M30 10 L32 2 L34 10" fill="#fbbf24"/>
+  <!-- face guard -->
+  <rect x="18" y="28" width="28" height="4" rx="2" fill="#7f1d1d"/>
+  <!-- face -->
+  <ellipse cx="32" cy="34" rx="12" ry="10" fill="#fcd34d"/>
+  <!-- eyes -->
+  <path d="M24 32 L28 31 L24 33" fill="#1e293b"/>
+  <path d="M40 32 L36 31 L40 33" fill="#1e293b"/>
+  <!-- mask -->
+  <path d="M24 36 Q28 34 32 36 Q36 34 40 36 Q40 40 32 42 Q24 40 24 36Z" fill="#dc2626"/>
+  <!-- armor body -->
+  <rect x="20" y="44" width="24" height="14" rx="4" fill="#991b1b"/>
+  <rect x="22" y="46" width="20" height="10" rx="3" fill="#b91c1c"/>
+</svg>

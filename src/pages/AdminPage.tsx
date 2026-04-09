@@ -5,44 +5,29 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Trash2, Ban, X, Eye, Clock, Shield, Users, Gavel, FileText, Download, Lock, BanIcon } from 'lucide-react';
+import { ArrowLeft, Trash2, Ban, X, Eye, Clock, Shield, Users, Gavel, FileText, Download, Lock, BanIcon, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { BAN_DURATIONS } from '@/lib/constants';
+import AvatarImg from '@/components/AvatarImg';
 
 interface Report {
-  id: string;
-  reason: string;
-  status: string;
-  created_at: string;
-  reported_post_id: string | null;
-  reported_comment_id: string | null;
-  reported_user_id: string | null;
-  reporter_id: string;
-  reporter_name?: string;
-  reported_name?: string;
-  report_count?: number;
+  id: string; reason: string; status: string; created_at: string;
+  reported_post_id: string | null; reported_comment_id: string | null;
+  reported_user_id: string | null; reporter_id: string;
+  reporter_name?: string; reported_name?: string; report_count?: number;
 }
-
 interface AuditEntry {
-  id: string;
-  actor_id: string;
-  action: string;
-  target_user_id: string | null;
-  details: any;
-  created_at: string;
-  actor_name?: string;
-  target_name?: string;
+  id: string; actor_id: string; action: string; target_user_id: string | null;
+  details: any; created_at: string; actor_name?: string; target_name?: string;
 }
-
 interface Appeal {
-  id: string;
-  user_id: string;
-  appeal_type: string;
-  reason: string;
-  status: string;
-  created_at: string;
-  user_name?: string;
+  id: string; user_id: string; appeal_type: string; reason: string;
+  status: string; created_at: string; user_name?: string;
+}
+interface UserResult {
+  user_id: string; anonymous_name: string; username: string;
+  avatar_id: number; points: number; is_banned: boolean; is_jailed: boolean;
 }
 
 type Tab = 'reports' | 'users' | 'audit' | 'appeals';
@@ -59,6 +44,10 @@ const AdminPage: React.FC = () => {
   const [banDuration, setBanDuration] = useState(1440);
   const [banReason, setBanReason] = useState('');
   const [punishAction, setPunishAction] = useState<'ban' | 'jail'>('ban');
+  // Users tab state
+  const [userSearch, setUserSearch] = useState('');
+  const [userResults, setUserResults] = useState<UserResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   const fetchReports = async () => {
     let q = supabase.from('reports').select('*').order('created_at', { ascending: false });
@@ -75,7 +64,7 @@ const AdminPage: React.FC = () => {
       });
     }
     rows.forEach(r => {
-      r.report_count = rows.filter(x => 
+      r.report_count = rows.filter(x =>
         (r.reported_post_id && x.reported_post_id === r.reported_post_id) ||
         (r.reported_comment_id && x.reported_comment_id === r.reported_comment_id) ||
         (r.reported_user_id && x.reported_user_id === r.reported_user_id)
@@ -109,6 +98,17 @@ const AdminPage: React.FC = () => {
       rows.forEach(r => r.user_name = nameMap.get(r.user_id) || 'Unknown');
     }
     setAppeals(rows);
+  };
+
+  const handleSearchUsers = async () => {
+    if (!userSearch.trim()) return;
+    setSearchLoading(true);
+    const { data } = await supabase.from('profiles')
+      .select('user_id, anonymous_name, username, avatar_id, points, is_banned, is_jailed')
+      .or(`anonymous_name.ilike.%${userSearch}%,username.ilike.%${userSearch}%`)
+      .limit(20);
+    setUserResults((data || []) as UserResult[]);
+    setSearchLoading(false);
   };
 
   useEffect(() => {
@@ -145,7 +145,7 @@ const AdminPage: React.FC = () => {
   };
 
   const handlePunish = async () => {
-    if (!banDialog || !user || !banReason.trim()) { toast.error('Ban reason is required'); return; }
+    if (!banDialog || !user || !banReason.trim()) { toast.error('Reason is required'); return; }
     const duration = banDuration === 0 ? null : banDuration;
     const { error } = await supabase.rpc('admin_punish_user', {
       _admin_id: user.id, _target_user_id: banDialog.userId, _action: punishAction,
@@ -153,7 +153,9 @@ const AdminPage: React.FC = () => {
     });
     if (error) { toast.error('Failed: ' + error.message); return; }
     toast.success(`User ${punishAction === 'ban' ? 'banned' : 'jailed'}`);
-    setBanDialog(null); setBanReason(''); fetchReports();
+    setBanDialog(null); setBanReason('');
+    if (tab === 'reports') fetchReports();
+    if (tab === 'users') handleSearchUsers();
   };
 
   const handleAppealResponse = async (appealId: string, approved: boolean) => {
@@ -176,7 +178,7 @@ const AdminPage: React.FC = () => {
       title: approved ? 'Appeal Approved' : 'Appeal Denied',
       body: approved ? 'Your punishment has been lifted.' : 'Your appeal was reviewed and denied.',
     });
-    toast.success(approved ? 'Appeal approved, punishment lifted' : 'Appeal denied');
+    toast.success(approved ? 'Appeal approved' : 'Appeal denied');
     fetchAppeals();
   };
 
@@ -194,6 +196,7 @@ const AdminPage: React.FC = () => {
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: 'reports', label: 'Reports', icon: <Eye className="w-4 h-4" /> },
+    { key: 'users', label: 'Users', icon: <Users className="w-4 h-4" /> },
     { key: 'appeals', label: 'Appeals', icon: <Gavel className="w-4 h-4" /> },
     { key: 'audit', label: 'Audit', icon: <FileText className="w-4 h-4" /> },
   ];
@@ -254,6 +257,43 @@ const AdminPage: React.FC = () => {
                     </Button>
                   </div>
                 )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab === 'users' && (
+        <div className="p-4 space-y-4">
+          <div className="flex gap-2">
+            <Input placeholder="Search by name or username..." value={userSearch} onChange={e => setUserSearch(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSearchUsers()} className="bg-card border-border" />
+            <Button size="sm" onClick={handleSearchUsers} disabled={searchLoading}>
+              <Search className="w-4 h-4" />
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {userResults.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Search for users to manage</p>
+            ) : userResults.map(u => (
+              <div key={u.user_id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card">
+                <AvatarImg avatarId={u.avatar_id || 1} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{u.anonymous_name}</p>
+                  <p className="text-[10px] text-muted-foreground">@{u.username} · {u.points.toLocaleString()} pts</p>
+                  <div className="flex gap-1 mt-0.5">
+                    {u.is_banned && <span className="text-[9px] bg-red-500/20 text-red-400 rounded px-1">Banned</span>}
+                    {u.is_jailed && <span className="text-[9px] bg-yellow-500/20 text-yellow-400 rounded px-1">Jailed</span>}
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  <Button size="sm" variant="destructive" onClick={() => setBanDialog({ userId: u.user_id, name: u.anonymous_name })}>
+                    <Ban className="w-3 h-3 mr-1" /> Punish
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => navigate(`/user/${u.user_id}`)}>
+                    <Eye className="w-3 h-3" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>

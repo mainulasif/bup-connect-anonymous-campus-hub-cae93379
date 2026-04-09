@@ -9,29 +9,15 @@ import { toast } from 'sonner';
 import { PROFILE_GIFT_FIELDS } from '@/lib/gifts';
 import { getUserBadges, FOUNDER_EMAIL } from '@/lib/badges';
 import BadgeIcon from '@/components/BadgeIcon';
-import AvatarImg from '@/components/AvatarImg';
+import AvatarWithAccessories from '@/components/AvatarWithAccessories';
 import { User, UserRound } from 'lucide-react';
 
 interface UserProfile {
-  user_id: string;
-  anonymous_name: string;
-  username: string;
-  bio: string | null;
-  age: number | null;
-  gender: string;
-  avatar_id: number;
-  points: number;
-  is_admin: boolean;
-  is_banned: boolean;
-  is_jailed: boolean;
-  is_muted: boolean;
-  is_premium: boolean;
-  is_online: boolean;
-  ban_expires_at: string | null;
-  gift_black_orchid: number;
-  gift_plushie: number;
-  gift_heart: number;
-  gift_diamond: number;
+  user_id: string; anonymous_name: string; username: string; bio: string | null;
+  age: number | null; gender: string; avatar_id: number; points: number;
+  is_admin: boolean; is_banned: boolean; is_jailed: boolean; is_muted: boolean;
+  is_premium: boolean; is_online: boolean; ban_expires_at: string | null;
+  gift_black_orchid: number; gift_plushie: number; gift_heart: number; gift_diamond: number;
 }
 
 const UserProfilePage: React.FC = () => {
@@ -50,7 +36,9 @@ const UserProfilePage: React.FC = () => {
       if (data) setProfile(data as any);
     });
     supabase.from('user_items').select('*, shop_items(*)').eq('user_id', userId).eq('is_equipped', true).then(({ data }) => {
-      setEquippedItems(data || []);
+      setEquippedItems((data || []).map((i: any) => ({
+        category: i.shop_items?.category, icon_url: i.shop_items?.icon_url, name: i.shop_items?.name,
+      })));
     });
   }, [userId]);
 
@@ -96,18 +84,7 @@ const UserProfilePage: React.FC = () => {
 
       <div className="p-6 space-y-6">
         <div className="flex flex-col items-center gap-3">
-          <AvatarImg avatarId={profile.avatar_id || 1} size="lg" />
-          {/* Equipped items */}
-          {equippedItems.length > 0 && (
-            <div className="flex gap-2">
-              {equippedItems.map((item: any) => (
-                <div key={item.id} className="flex flex-col items-center">
-                  <img src={item.shop_items?.icon_url} alt={item.shop_items?.name} className="w-8 h-8" />
-                  <span className="text-[9px] text-muted-foreground">{item.shop_items?.name}</span>
-                </div>
-              ))}
-            </div>
-          )}
+          <AvatarWithAccessories avatarId={profile.avatar_id || 1} equippedItems={equippedItems} size="lg" />
           <div className="text-center">
             <h2 className="text-xl font-bold">{profile.anonymous_name}</h2>
             <p className="text-xs text-muted-foreground">@{profile.username}</p>

@@ -1,1 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="32" fill="#0f172a"/><path d="M22 48V28c0-6 4-10 10-10s10 4 10 10v20l-3-3-3.5 3-3.5-3-3.5 3-3.5-3z" fill="#334155" opacity="0.8"/><circle cx="28" cy="30" r="2.5" fill="#a855f7"/><circle cx="36" cy="30" r="2.5" fill="#a855f7"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="32" fill="#0c0a1d"/>
+  <!-- ethereal aura -->
+  <ellipse cx="32" cy="34" rx="20" ry="22" fill="#1e1b4b" opacity="0.5"/>
+  <!-- cloak body -->
+  <path d="M18 52 L18 24 Q18 14 32 12 Q46 14 46 24 L46 52 L42 48 L38 52 L34 48 L30 52 L26 48 L22 52 Z" fill="#312e81" opacity="0.8"/>
+  <path d="M20 50 L20 26 Q20 16 32 14 Q44 16 44 26 L44 50 L41 47 L38 50 L35 47 L32 50 L29 47 L26 50 L23 47 Z" fill="#3730a3" opacity="0.7"/>
+  <!-- hood -->
+  <path d="M18 28 Q18 12 32 10 Q46 12 46 28 Q40 24 32 24 Q24 24 18 28Z" fill="#1e1b4b"/>
+  <!-- eyes -->
+  <ellipse cx="26" cy="26" rx="3" ry="4" fill="#a855f7"/>
+  <ellipse cx="38" cy="26" rx="3" ry="4" fill="#a855f7"/>
+  <circle cx="26" cy="26" r="1.5" fill="#e9d5ff"/>
+  <circle cx="38" cy="26" r="1.5" fill="#e9d5ff"/>
+  <!-- smoke wisps -->
+  <path d="M22 46 Q18 42 20 38" stroke="#6366f1" stroke-width="1" fill="none" opacity="0.4"/>
+  <path d="M42 46 Q46 42 44 38" stroke="#6366f1" stroke-width="1" fill="none" opacity="0.4"/>
+</svg>
