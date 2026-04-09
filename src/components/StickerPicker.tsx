@@ -47,7 +47,7 @@ const StickerPicker: React.FC<StickerPickerProps> = ({ onSelect, onClose }) => {
   }, [user]);
 
   const activeStickers = stickers.filter(s => s.pack_id === activePack);
-  const isImageSticker = (emoji: string) => emoji.startsWith('/');
+  const isImageSticker = (emoji: string) => emoji.startsWith('/') || emoji.endsWith('.svg') || emoji.endsWith('.png');
 
   return (
     <div className="absolute bottom-full mb-2 left-0 right-0 bg-card border border-border rounded-xl p-3 shadow-lg animate-fade-in max-h-[280px] overflow-hidden">
