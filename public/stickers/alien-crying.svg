@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <radialGradient id="bg_alien_crying" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#76FF03" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#76FF03" stop-opacity="0.05"/>
+    </radialGradient>
+  </defs>
+  <circle cx="60" cy="55" r="45" fill="url(#bg_alien_crying)" stroke="#76FF03" stroke-width="2" opacity="0.6"/>
+  <ellipse cx="60" cy="58" rx="28" ry="30" fill="#76FF03" opacity="0.85"/>
+  <ellipse cx="60" cy="65" rx="18" ry="20" fill="#64DD17" opacity="0.3"/>
+  <circle cx="42" cy="32" r="8" fill="#76FF03" opacity="0.6"/><circle cx="78" cy="32" r="8" fill="#76FF03" opacity="0.6"/>
+  <path d="M46,47 Q50,50 54,47" fill="none" stroke="#222" stroke-width="2" stroke-linecap="round"/><path d="M66,47 Q70,50 74,47" fill="none" stroke="#222" stroke-width="2" stroke-linecap="round"/>
+  <path d="M52,62 Q60,56 68,62" fill="none" stroke="#222" stroke-width="2" stroke-linecap="round"/>
+  
+  <line x1="47" y1="50" x2="45" y2="68" stroke="#42A5F5" stroke-width="2" opacity="0.6" stroke-linecap="round"/><line x1="53" y1="50" x2="51" y2="66" stroke="#42A5F5" stroke-width="1.5" opacity="0.4" stroke-linecap="round"/><line x1="73" y1="50" x2="75" y2="68" stroke="#42A5F5" stroke-width="2" opacity="0.6" stroke-linecap="round"/><line x1="67" y1="50" x2="69" y2="66" stroke="#42A5F5" stroke-width="1.5" opacity="0.4" stroke-linecap="round"/><circle cx="45" cy="70" r="2" fill="#42A5F5" opacity="0.5"/><circle cx="75" cy="70" r="2" fill="#42A5F5" opacity="0.5"/>
+  <text x="60" y="108" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" font-weight="bold" fill="#42A5F5">Crying</text>
+</svg>
