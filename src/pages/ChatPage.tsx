@@ -2,20 +2,24 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { ArrowLeft, Send, Settings, Bell, BellOff, Gift } from 'lucide-react';
+import { ArrowLeft, Send, Settings, Bell, BellOff, Gift, Smile, Flag, Ban, Reply } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import AvatarImg from '@/components/AvatarImg';
 import GiftDialog from '@/components/GiftDialog';
-import { DELETE_FOR_EVERYONE_LIMIT_MS } from '@/lib/constants';
+import ReportDialog from '@/components/ReportDialog';
+import StickerPicker from '@/components/StickerPicker';
+import { DELETE_FOR_EVERYONE_LIMIT_MS, BAN_DURATIONS } from '@/lib/constants';
 import { containsProfanity, censorText } from '@/lib/profanity';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Message {
   id: string; sender_id: string; content: string; created_at: string;
   anonymous_name: string; avatar_id: number; is_deleted_for_all: boolean;
-  deleted_by_users: string[]; bubble_color?: string;
+  deleted_by_users: string[]; bubble_color?: string; reply_to_id?: string;
+  reply_preview?: string; reply_name?: string;
 }
 
 const BUBBLE_COLOR_MAP: Record<string, string> = {
@@ -42,6 +46,14 @@ const ChatPage: React.FC = () => {
   const [contextMsg, setContextMsg] = useState<string | null>(null);
   const [showGift, setShowGift] = useState(false);
   const [giftReceiverId, setGiftReceiverId] = useState('');
+  const [showStickers, setShowStickers] = useState(false);
+  const [replyTo, setReplyTo] = useState<{ id: string; name: string; content: string } | null>(null);
+  const [reportTarget, setReportTarget] = useState<{ userId?: string; messageContent?: string } | null>(null);
+  const [banDialog, setBanDialog] = useState<{ userId: string; name: string } | null>(null);
+  const [banDuration, setBanDuration] = useState(1440);
+  const [banReason, setBanReason] = useState('');
+  const [punishAction, setPunishAction] = useState<'ban' | 'jail'>('ban');
+  const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const isGroup = convType === 'public_group' || convType === 'private_group';
@@ -70,9 +82,15 @@ const ChatPage: React.FC = () => {
     setMyRole(myMembership?.role || 'member');
     setIsMuted(myMembership?.is_muted || false);
 
+    // Fetch blocked users
+    if (user) {
+      const { data: blocks } = await supabase.from('blocks').select('blocked_id').eq('blocker_id', user.id);
+      setBlockedIds(new Set((blocks || []).map(b => b.blocked_id)));
+    }
+
     const { data, error } = await supabase
       .from('messages')
-      .select('id, sender_id, content, created_at, is_deleted_for_all, deleted_by_users')
+      .select('id, sender_id, content, created_at, is_deleted_for_all, deleted_by_users, reply_to_id')
       .eq('conversation_id', id)
       .order('created_at', { ascending: true })
       .limit(50);
@@ -86,12 +104,25 @@ const ChatPage: React.FC = () => {
       : { data: [] as any[] };
 
     const nameMap = new Map((profiles || []).map(p => [p.user_id, { name: p.anonymous_name, avatar_id: p.avatar_id, bubble_color: p.bubble_color }]));
+    
+    // Build reply previews
+    const replyIds = messageRows.filter(m => m.reply_to_id).map(m => m.reply_to_id!);
+    const replyMap = new Map<string, { content: string; name: string }>();
+    if (replyIds.length) {
+      const { data: replyMsgs } = await supabase.from('messages').select('id, content, sender_id').in('id', replyIds);
+      (replyMsgs || []).forEach(rm => {
+        replyMap.set(rm.id, { content: rm.content.slice(0, 50), name: nameMap.get(rm.sender_id)?.name || 'Someone' });
+      });
+    }
+
     setMessages(messageRows.map(m => ({
       ...m,
       anonymous_name: nameMap.get(m.sender_id)?.name || 'Anonymous',
       avatar_id: nameMap.get(m.sender_id)?.avatar_id || 1,
       bubble_color: nameMap.get(m.sender_id)?.bubble_color || null,
       deleted_by_users: (m as any).deleted_by_users || [],
+      reply_preview: m.reply_to_id ? replyMap.get(m.reply_to_id)?.content : undefined,
+      reply_name: m.reply_to_id ? replyMap.get(m.reply_to_id)?.name : undefined,
     })));
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
@@ -111,8 +142,18 @@ const ChatPage: React.FC = () => {
     let msg = input.trim();
     if (containsProfanity(msg)) { msg = censorText(msg); toast.info('Profanity was filtered'); }
     setInput('');
-    const { error } = await supabase.from('messages').insert({ conversation_id: id, sender_id: user.id, content: msg });
+    const insertData: any = { conversation_id: id, sender_id: user.id, content: msg };
+    if (replyTo) insertData.reply_to_id = replyTo.id;
+    const { error } = await supabase.from('messages').insert(insertData);
     if (error) { setInput(msg); toast.error('Failed to send'); return; }
+    setReplyTo(null);
+    fetchMessages();
+  };
+
+  const handleStickerSend = async (sticker: string) => {
+    if (!user || !id) return;
+    if (isMuted) { toast.error('You are muted'); return; }
+    await supabase.from('messages').insert({ conversation_id: id, sender_id: user.id, content: sticker });
     fetchMessages();
   };
 
@@ -151,6 +192,18 @@ const ChatPage: React.FC = () => {
     await supabase.from('conversation_members').update({ is_muted: !isMuted }).eq('conversation_id', id).eq('user_id', user.id);
     setIsMuted(!isMuted);
     toast.success(isMuted ? 'Unmuted' : 'Muted');
+  };
+
+  const handlePunish = async () => {
+    if (!banDialog || !user || !banReason.trim()) { toast.error('Reason is required'); return; }
+    const duration = banDuration === 0 ? null : banDuration;
+    const { error } = await supabase.rpc('admin_punish_user', {
+      _admin_id: user.id, _target_user_id: banDialog.userId, _action: punishAction,
+      _duration_minutes: duration, _reason: banReason,
+    });
+    if (error) { toast.error('Failed: ' + error.message); return; }
+    toast.success(`User ${punishAction === 'ban' ? 'banned' : 'jailed'}`);
+    setBanDialog(null); setBanReason('');
   };
 
   const getBubbleStyle = (bubbleColor: string | undefined, isMe: boolean) => {
@@ -194,6 +247,7 @@ const ChatPage: React.FC = () => {
         {messages.filter(m => {
           if (m.is_deleted_for_all) return false;
           if (m.deleted_by_users?.includes(user?.id || '')) return false;
+          if (blockedIds.has(m.sender_id)) return false;
           return true;
         }).map(m => {
           const isMe = m.sender_id === user?.id;
@@ -206,6 +260,13 @@ const ChatPage: React.FC = () => {
                 style={bubbleStyle}
                 onContextMenu={e => { e.preventDefault(); setContextMsg(contextMsg === m.id ? null : m.id); }}
                 onClick={() => setContextMsg(null)}>
+                {/* Reply preview */}
+                {m.reply_preview && (
+                  <div className={`text-[10px] mb-1 px-2 py-1 rounded border-l-2 ${isMe ? 'border-white/40 bg-white/10' : 'border-primary/40 bg-primary/5'}`}>
+                    <span className="font-medium">{m.reply_name}</span>
+                    <p className="truncate opacity-70">{m.reply_preview}</p>
+                  </div>
+                )}
                 {!isMe && (
                   <button onClick={() => navigate(`/user/${m.sender_id}`)} className="text-xs font-medium text-primary mb-0.5 flex items-center gap-1">
                     <AvatarImg avatarId={m.avatar_id} size="sm" className="w-4 h-4" /> {m.anonymous_name}
@@ -216,9 +277,21 @@ const ChatPage: React.FC = () => {
                   {formatDistanceToNow(new Date(m.created_at), { addSuffix: true })}
                 </p>
                 {contextMsg === m.id && (
-                  <div className="mt-1 flex gap-1">
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    <button onClick={e => { e.stopPropagation(); setReplyTo({ id: m.id, name: m.anonymous_name, content: m.content.slice(0, 50) }); setContextMsg(null); }}
+                      className="text-[10px] bg-muted rounded px-1.5 py-0.5 flex items-center gap-0.5"><Reply className="w-3 h-3" /> Reply</button>
                     {isMe && <button onClick={e => { e.stopPropagation(); handleDeleteMessage(m.id, false); }} className="text-[10px] bg-muted rounded px-1.5 py-0.5">Delete for me</button>}
                     {(isMe || canModerate) && <button onClick={e => { e.stopPropagation(); handleDeleteMessage(m.id, true); }} className="text-[10px] bg-destructive/20 text-destructive rounded px-1.5 py-0.5">Delete for all</button>}
+                    {!isMe && (
+                      <>
+                        <button onClick={e => { e.stopPropagation(); setReportTarget({ userId: m.sender_id, messageContent: m.content }); setContextMsg(null); }}
+                          className="text-[10px] bg-yellow-500/20 text-yellow-400 rounded px-1.5 py-0.5 flex items-center gap-0.5"><Flag className="w-3 h-3" /> Report</button>
+                        {canModerate && (
+                          <button onClick={e => { e.stopPropagation(); setBanDialog({ userId: m.sender_id, name: m.anonymous_name }); setContextMsg(null); }}
+                            className="text-[10px] bg-destructive/20 text-destructive rounded px-1.5 py-0.5 flex items-center gap-0.5"><Ban className="w-3 h-3" /> Ban/Jail</button>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -233,8 +306,22 @@ const ChatPage: React.FC = () => {
           <Button onClick={handleJoin}>Join Group</Button>
         </div>
       ) : (
-        <div className="border-t border-border p-3 bg-background safe-bottom">
+        <div className="border-t border-border p-3 bg-background safe-bottom relative">
+          {replyTo && (
+            <div className="flex items-center gap-2 mb-2 px-2 py-1.5 bg-muted rounded-lg text-xs">
+              <Reply className="w-3 h-3 text-primary" />
+              <div className="flex-1 min-w-0">
+                <span className="font-medium text-primary">{replyTo.name}</span>
+                <p className="truncate text-muted-foreground">{replyTo.content}</p>
+              </div>
+              <button onClick={() => setReplyTo(null)} className="text-muted-foreground">✕</button>
+            </div>
+          )}
+          {showStickers && <StickerPicker onSelect={handleStickerSend} onClose={() => setShowStickers(false)} />}
           <div className="flex gap-2">
+            <button onClick={() => setShowStickers(!showStickers)} className="p-2.5 text-muted-foreground hover:text-foreground">
+              <Smile className="w-5 h-5" />
+            </button>
             <Input placeholder={isMuted ? 'You are muted' : 'Type a message...'} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} className="bg-card border-border" disabled={isMuted} />
             <button onClick={handleSend} disabled={!input.trim() || isMuted} className="p-2.5 bg-primary text-primary-foreground rounded-lg disabled:opacity-50">
               <Send className="w-5 h-5" />
@@ -244,6 +331,30 @@ const ChatPage: React.FC = () => {
       )}
 
       <GiftDialog open={showGift} onClose={() => setShowGift(false)} receiverId={giftReceiverId} conversationId={id} />
+      
+      {reportTarget && (
+        <ReportDialog open={!!reportTarget} onClose={() => setReportTarget(null)} reportedUserId={reportTarget.userId} />
+      )}
+
+      {banDialog && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg p-6 w-full max-w-sm space-y-4">
+            <h3 className="text-lg font-bold">Punish {banDialog.name}</h3>
+            <div className="flex gap-2">
+              <Button size="sm" variant={punishAction === 'ban' ? 'default' : 'ghost'} onClick={() => setPunishAction('ban')}><Ban className="w-3 h-3 mr-1" /> Ban</Button>
+              <Button size="sm" variant={punishAction === 'jail' ? 'default' : 'ghost'} onClick={() => setPunishAction('jail')}>Jail</Button>
+            </div>
+            <select value={banDuration} onChange={e => setBanDuration(Number(e.target.value))} className="w-full bg-background border border-border rounded-lg p-2 text-sm text-foreground">
+              {BAN_DURATIONS.map(d => <option key={d.minutes} value={d.minutes}>{d.label}</option>)}
+            </select>
+            <Textarea placeholder="Reason (required)" value={banReason} onChange={e => setBanReason(e.target.value)} className="bg-background border-border" maxLength={500} />
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => setBanDialog(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={handlePunish} disabled={!banReason.trim()}>Confirm</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
