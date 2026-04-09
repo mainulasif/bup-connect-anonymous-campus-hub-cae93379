@@ -635,6 +635,36 @@ export type Database = {
           },
         ]
       }
+      shop_items: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          icon_url: string
+          id: string
+          name: string
+          price: number
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description?: string | null
+          icon_url: string
+          id?: string
+          name: string
+          price: number
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          icon_url?: string
+          id?: string
+          name?: string
+          price?: number
+        }
+        Relationships: []
+      }
       subscriptions: {
         Row: {
           amount: number
@@ -670,6 +700,38 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_items: {
+        Row: {
+          id: string
+          is_equipped: boolean
+          item_id: string
+          purchased_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          is_equipped?: boolean
+          item_id: string
+          purchased_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          is_equipped?: boolean
+          item_id?: string
+          purchased_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "shop_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -733,6 +795,7 @@ export type Database = {
       }
       is_user_admin: { Args: { _user_id: string }; Returns: boolean }
       is_user_banned: { Args: { _user_id: string }; Returns: boolean }
+      purchase_item: { Args: { p_item_id: string }; Returns: Json }
       send_gift: {
         Args: {
           p_gift_type_id: string

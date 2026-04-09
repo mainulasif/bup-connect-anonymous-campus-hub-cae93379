@@ -4,18 +4,26 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { LogOut, Settings, Shield, Bell } from 'lucide-react';
+import { LogOut, Settings, Shield, Bell, Search, User, UserRound, Lock, Ban as BanIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { PROFILE_GIFT_FIELDS } from '@/lib/gifts';
 import { AVATARS, getAvatar } from '@/lib/avatars';
 import { getUserBadges } from '@/lib/badges';
+import BadgeIcon from '@/components/BadgeIcon';
+import AvatarImg from '@/components/AvatarImg';
 import { GENDER_OPTIONS } from '@/lib/constants';
 
 interface BlockedUser {
   blocked_id: string;
   anonymous_name: string;
 }
+
+const GenderIcon: React.FC<{ value: string }> = ({ value }) => {
+  if (value === 'male') return <User className="w-4 h-4" />;
+  if (value === 'female') return <UserRound className="w-4 h-4" />;
+  return <span className="text-xs text-muted-foreground">—</span>;
+};
 
 const ProfilePage: React.FC = () => {
   const { user, profile, isAdmin, isFounder, signOut, refreshProfile } = useAuth();
@@ -30,6 +38,7 @@ const ProfilePage: React.FC = () => {
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const [userItems, setUserItems] = useState<any[]>([]);
 
   useEffect(() => {
     if (profile) {
@@ -52,7 +61,13 @@ const ProfilePage: React.FC = () => {
     setBlockedUsers(blockedIds.map(id => ({ blocked_id: id, anonymous_name: profileMap.get(id) || 'Anonymous' })));
   };
 
-  useEffect(() => { fetchBlockedUsers(); }, [user]);
+  const fetchUserItems = async () => {
+    if (!user) return;
+    const { data } = await supabase.from('user_items').select('*, shop_items(*)').eq('user_id', user.id);
+    setUserItems(data || []);
+  };
+
+  useEffect(() => { fetchBlockedUsers(); fetchUserItems(); }, [user]);
   
   useEffect(() => {
     if (!user) return;
@@ -92,11 +107,23 @@ const ProfilePage: React.FC = () => {
     fetchBlockedUsers();
   };
 
+  const handleEquipToggle = async (itemId: string, category: string, currentlyEquipped: boolean) => {
+    if (!user) return;
+    if (!currentlyEquipped) {
+      // Unequip any other item in same category
+      const sameCategory = userItems.filter(i => i.shop_items?.category === category && i.is_equipped);
+      for (const item of sameCategory) {
+        await supabase.from('user_items').update({ is_equipped: false }).eq('id', item.id);
+      }
+    }
+    await supabase.from('user_items').update({ is_equipped: !currentlyEquipped }).eq('id', itemId);
+    fetchUserItems();
+    toast.success(currentlyEquipped ? 'Unequipped' : 'Equipped!');
+  };
+
   if (!profile) return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
 
-  const avatar = getAvatar(profile.avatar_id || 1);
   const badges = getUserBadges(profile, isFounder);
-  const genderInfo = GENDER_OPTIONS.find(g => g.value === (profile.gender || 'unspecified'));
 
   return (
     <div className="max-w-lg mx-auto pb-20">
@@ -115,15 +142,15 @@ const ProfilePage: React.FC = () => {
       <div className="p-6 space-y-6">
         {/* Avatar */}
         <div className="flex flex-col items-center gap-3">
-          <button onClick={() => editing && setShowAvatarPicker(!showAvatarPicker)} className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center text-4xl">
-            {avatar.emoji}
+          <button onClick={() => editing && setShowAvatarPicker(!showAvatarPicker)}>
+            <AvatarImg avatarId={avatarId} size="lg" />
           </button>
           {showAvatarPicker && editing && (
             <div className="grid grid-cols-5 gap-2 p-3 bg-card rounded-lg border border-border max-w-[280px]">
               {AVATARS.map(a => (
                 <button key={a.id} onClick={() => { setAvatarId(a.id); setShowAvatarPicker(false); }}
-                  className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl transition-colors ${avatarId === a.id ? 'bg-primary/20 border-2 border-primary' : 'bg-background border border-border hover:bg-muted'}`}>
-                  {a.emoji}
+                  className={`w-12 h-12 rounded-lg flex items-center justify-center transition-colors ${avatarId === a.id ? 'bg-primary/20 border-2 border-primary' : 'bg-background border border-border hover:bg-muted'}`}>
+                  <img src={a.src} alt={a.label} className="w-10 h-10 rounded-lg" />
                 </button>
               ))}
             </div>
@@ -139,7 +166,9 @@ const ProfilePage: React.FC = () => {
               <p className="text-xs text-muted-foreground">@{profile.username}</p>
               <div className="flex items-center justify-center gap-1 mt-1 flex-wrap">
                 {badges.map(b => (
-                  <span key={b.key} className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${b.color}`}>{b.emoji} {b.label}</span>
+                  <span key={b.key} className={`rounded-full border px-2 py-0.5 text-[10px] font-medium inline-flex items-center gap-1 ${b.color}`}>
+                    <BadgeIcon name={b.iconName} /> {b.label}
+                  </span>
                 ))}
               </div>
             </div>
@@ -157,13 +186,13 @@ const ProfilePage: React.FC = () => {
             {editing ? <Input type="number" value={age} onChange={e => setAge(e.target.value)} className="h-7 text-center bg-background border-border text-sm" min={16} max={99} />
               : <p className="text-lg font-bold">{profile.age || '—'}</p>}
           </div>
-          <div className="bg-card rounded-lg p-3 text-center border border-border">
+          <div className="bg-card rounded-lg p-3 text-center border border-border flex flex-col items-center justify-center">
             <p className="text-xs text-muted-foreground">Gender</p>
             {editing ? (
               <select value={gender} onChange={e => setGender(e.target.value)} className="w-full h-7 text-xs bg-background border border-border rounded text-foreground">
-                {GENDER_OPTIONS.map(g => <option key={g.value} value={g.value}>{g.icon} {g.label}</option>)}
+                {GENDER_OPTIONS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
               </select>
-            ) : <p className="text-lg">{genderInfo?.icon || '🤫'}</p>}
+            ) : <GenderIcon value={profile.gender || 'unspecified'} />}
           </div>
         </div>
 
@@ -184,6 +213,23 @@ const ProfilePage: React.FC = () => {
           ))}
         </div>
 
+        {/* My Items */}
+        {userItems.length > 0 && (
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold">My Items</h3>
+            <div className="grid grid-cols-3 gap-2">
+              {userItems.map((item: any) => (
+                <button key={item.id} onClick={() => handleEquipToggle(item.id, item.shop_items?.category, item.is_equipped)}
+                  className={`rounded-xl border p-3 text-center transition-colors ${item.is_equipped ? 'border-primary bg-primary/10' : 'border-border bg-card'}`}>
+                  <img src={item.shop_items?.icon_url} alt={item.shop_items?.name} className="w-10 h-10 mx-auto" />
+                  <p className="text-[10px] mt-1 truncate">{item.shop_items?.name}</p>
+                  <p className="text-[9px] text-muted-foreground">{item.is_equipped ? 'Equipped' : 'Tap to equip'}</p>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Bio */}
         {editing ? (
           <Textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="Write something about yourself..." className="bg-card border-border" maxLength={200} />
@@ -203,7 +249,7 @@ const ProfilePage: React.FC = () => {
           ) : (
             <>
               <Button onClick={() => setEditing(true)} variant="secondary" className="flex-1"><Settings className="w-4 h-4 mr-1" /> Edit Profile</Button>
-              <Button onClick={() => navigate('/search')} variant="outline" className="flex-1">🔍 Search</Button>
+              <Button onClick={() => navigate('/search')} variant="outline" className="flex-1"><Search className="w-4 h-4 mr-1" /> Search</Button>
             </>
           )}
         </div>
@@ -227,16 +273,22 @@ const ProfilePage: React.FC = () => {
         {(profile.is_banned || profile.is_jailed) && (
           <div className="rounded-lg border border-destructive bg-destructive/10 p-4 space-y-2">
             {profile.is_banned && (
-              <div>
-                <p className="text-sm font-medium text-destructive">🚫 You are banned</p>
-                <p className="text-xs text-muted-foreground">{profile.ban_reason}</p>
-                {profile.ban_expires_at && <p className="text-xs text-muted-foreground">Expires: {new Date(profile.ban_expires_at).toLocaleString()}</p>}
+              <div className="flex items-start gap-2">
+                <BanIcon className="w-4 h-4 text-destructive mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-destructive">You are banned</p>
+                  <p className="text-xs text-muted-foreground">{profile.ban_reason}</p>
+                  {profile.ban_expires_at && <p className="text-xs text-muted-foreground">Expires: {new Date(profile.ban_expires_at).toLocaleString()}</p>}
+                </div>
               </div>
             )}
             {profile.is_jailed && (
-              <div>
-                <p className="text-sm font-medium text-destructive">⛓️ You are in Jail</p>
-                {profile.jail_expires_at && <p className="text-xs text-muted-foreground">Expires: {new Date(profile.jail_expires_at).toLocaleString()}</p>}
+              <div className="flex items-start gap-2">
+                <Lock className="w-4 h-4 text-destructive mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-destructive">You are in Jail</p>
+                  {profile.jail_expires_at && <p className="text-xs text-muted-foreground">Expires: {new Date(profile.jail_expires_at).toLocaleString()}</p>}
+                </div>
               </div>
             )}
             <Button size="sm" variant="outline" onClick={() => navigate('/appeal')}>Submit Appeal</Button>
