@@ -110,7 +110,7 @@ const ShopPage: React.FC = () => {
 
   const filteredItems = shopItems.filter(i => i.category === accessoryCategory);
 
-  // Use shared utility for preview colors
+  
 
   return (
     <div className="max-w-lg mx-auto">
