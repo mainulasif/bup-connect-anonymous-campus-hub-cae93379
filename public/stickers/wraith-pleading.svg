@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <radialGradient id="bg_wraith_pleading" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#4A148C" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#4A148C" stop-opacity="0.05"/>
+    </radialGradient>
+  </defs>
+  <circle cx="60" cy="55" r="45" fill="url(#bg_wraith_pleading)" stroke="#4A148C" stroke-width="2" opacity="0.6"/>
+  <ellipse cx="60" cy="58" rx="28" ry="30" fill="#4A148C" opacity="0.85"/>
+  <ellipse cx="60" cy="65" rx="18" ry="20" fill="#311B92" opacity="0.3"/>
+  <circle cx="42" cy="32" r="8" fill="#4A148C" opacity="0.6"/><circle cx="78" cy="32" r="8" fill="#4A148C" opacity="0.6"/>
+  <circle cx="50" cy="46" r="6" fill="#222" opacity="0.8"/><circle cx="70" cy="46" r="6" fill="#222" opacity="0.8"/><circle cx="52" cy="44" r="2" fill="white" opacity="0.9"/><circle cx="72" cy="44" r="2" fill="white" opacity="0.9"/><circle cx="48" cy="43" r="1" fill="white" opacity="0.6"/><circle cx="68" cy="43" r="1" fill="white" opacity="0.6"/>
+  <path d="M54,60 Q60,57 66,60" fill="none" stroke="#222" stroke-width="1.5" stroke-linecap="round"/>
+  
+  <line x1="44" y1="38" x2="52" y2="36" stroke="#222" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/><line x1="76" y1="38" x2="68" y2="36" stroke="#222" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+  <text x="60" y="108" text-anchor="middle" font-family="Arial,sans-serif" font-size="11" font-weight="bold" fill="#CE93D8">Please</text>
+</svg>
