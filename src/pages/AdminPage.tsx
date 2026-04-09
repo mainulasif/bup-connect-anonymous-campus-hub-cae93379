@@ -47,6 +47,9 @@ const AdminPage: React.FC = () => {
   const [userSearch, setUserSearch] = useState('');
   const [userResults, setUserResults] = useState<UserResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [bannedUsers, setBannedUsers] = useState<UserResult[]>([]);
+  const [jailedUsers, setJailedUsers] = useState<UserResult[]>([]);
+  const [usersSubTab, setUsersSubTab] = useState<'search' | 'banned' | 'jailed'>('banned');
 
   const fetchReports = async () => {
     let q = supabase.from('reports').select('*').order('created_at', { ascending: false });
