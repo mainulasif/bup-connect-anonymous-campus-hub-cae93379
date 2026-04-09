@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { CreditCard, CheckCircle, ShoppingBag, Palette, Smile } from 'lucide-react';
 import { GIFT_EMOJI } from '@/lib/gifts';
+import { getBubbleBackground } from '@/lib/bubbleColors';
 
 interface ShopItem {
   id: string; name: string; category: string; icon_url: string; price: number; description: string;
@@ -263,10 +264,10 @@ const ShopPage: React.FC = () => {
                   {bubbleColors.map(bc => {
                     const isActive = (profile as any)?.bubble_color === bc.css_class;
                     const owned = ownedColorIds.has(bc.id) || bc.price === 0;
-                    const previewColor = bubblePreviewColors[bc.css_class] || '#6366f1';
+                    const previewColor = getBubbleBackground(bc.css_class) || '#6366f1';
                     return (
                       <div key={bc.id} className={`rounded-xl border p-4 text-center space-y-2 ${isActive ? 'border-primary bg-primary/10' : owned ? 'border-green-500/30' : 'border-border bg-card'}`}>
-                        <div className="w-full h-8 rounded-lg flex items-center justify-center" style={{ background: bc.css_class.includes('gradient') ? 'linear-gradient(to right, #8b5cf6, #22d3ee)' : previewColor }}>
+                        <div className="w-full h-8 rounded-lg flex items-center justify-center" style={{ background: previewColor }}>
                           <span className="text-white text-xs font-medium">Hello!</span>
                         </div>
                         <p className="text-sm font-medium">{bc.name}</p>
