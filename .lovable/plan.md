@@ -1,80 +1,59 @@
 
 
-## Merged Plan: Avatars, Group Settings, Shop Accessories, Icons & Chat Retention
+## Plan: 10 Fixes — Avatars, Moderation, Accessories, Points, Gifts, Chat Bubbles
 
-### 1. Replace Emoji Avatars with Custom SVG Illustrations
+### Fix 1: Cooler Avatars
+The current SVGs are simple flat circles. Replace all 20 SVG files in `public/avatars/` with more detailed, character-style illustrations — larger bodies, expressive eyes, distinctive features (wings, claws, horns, armor). Inspired by the Antiland dragon/owl style but as flat-design SVGs with more detail and personality.
 
-- Create 20 stylized SVG files in `public/avatars/` (~1-2KB each): dinosaur, phoenix, kraken, ghost, robot, alien, yeti, ninja, samurai, wolf, dragon, serpent, golem, cyborg, sphinx, griffin, wraith, mantis, scorpion, chimera
-- Rewrite `src/lib/avatars.ts`: change from `{ id, emoji, label }` to `{ id, src, label }` where `src` is `/avatars/name.svg`
-- Create a shared `<AvatarImg />` component for consistent rendering
-- Update every component that renders avatars: `PostCard`, `FeedPage`, `PostDetailPage`, `ProfilePage`, `UserProfilePage`, `ChatPage`, `InboxPage`
+**Files**: Replace all 20 `public/avatars/*.svg` files
 
-### 2. Dedicated Group Settings Page
+### Fix 2: Demote Option Missing
+The demote button logic at `GroupSettingsPage.tsx:234-241` already exists and works correctly — it shows ChevronDown for moderators when `canPromoteDemote` is true. The issue is likely that the current user's role isn't being detected as `creator`. Will add debug logging and ensure the `canPromoteDemote` check includes proper fallback for founder email check.
 
-- **New file**: `src/pages/GroupSettingsPage.tsx` at route `/group/:id/settings`
-- Layout inspired by the Antiland screenshot: dark card sections for group info, members, rules, actions
-- Sections: Group name/type, Join/Leave button, Group Link (copyable for private groups), Group Rules (editable by mods), Pinned Announcements, Active Members list
-- Member list shows: avatar image, display name, points, gender icon (Lucide `User`/`UserRound`), age, online dot, role label, DM button
-- **Moderation actions** (visible to creator/admin/founder only): Promote to Mod, **Demote from Mod**, Kick, Ban
-- Demote option restricted to group creator, admin, or founder — not other moderators
-- **Simplify `ChatPage.tsx`**: remove inline members/rules/pinned panels, add a settings gear icon in the header that navigates to the new page
+**Files**: `src/pages/GroupSettingsPage.tsx`
 
-### 3. Replace All UI Emojis with Lucide Icons
+### Fix 3: Show "Chat Mod" Label in Member List
+Currently roles show as `(moderator)` in parentheses (line 215). Change to show a styled colored label like "Chat Mod" next to the name, matching the Antiland screenshot style — magenta/pink color, right-aligned.
 
-No emoji for any system indicator. Replace throughout:
+**Files**: `src/pages/GroupSettingsPage.tsx`
 
-| Context | Lucide Icon |
-|---------|-------------|
-| Founder badge | `Crown` |
-| Admin badge | `ShieldCheck` |
-| Creator badge | `Star` |
-| Moderator badge | `Wrench` |
-| Premium badge | `Gem` |
-| Jailed badge | `Lock` |
-| Muted badge | `VolumeX` |
-| Banned badge | `Ban` |
-| Male gender | `User` |
-| Female gender | `UserRound` |
-| Unspecified gender | `UserX` |
-| Promote | `ChevronUp` |
-| Demote | `ChevronDown` |
-| DM action | `MessageCircle` |
-| Pin | `Pin` |
-| Rules | `BookOpen` |
-| Members | `Users` |
-| Mute/Unmute | `BellOff` / `Bell` |
+### Fix 4 & 5: Ban/Jail with Timed Durations from Admin Panel
+The `admin_punish_user` RPC and `BAN_DURATIONS` constants exist, but the ban dialog only appears from reports. Add a **Users** tab to the Admin Panel where admins can search any user and directly ban/jail them with duration selection. The existing ban dialog already supports duration + reason + ban/jail toggle.
 
-**Files to update**: `badges.ts`, `constants.ts`, `ChatPage`, `AdminPage`, `ProfilePage`, `UserProfilePage`, `PostCard`, `ShopPage`
+**Files**: `src/pages/AdminPage.tsx` — add "Users" tab with user search + punish action
 
-Gift icons (🌸🧸💜💎) stay as-is — they are product icons, not UI indicators.
+### Fix 6: Cooler Accessory SVGs
+Replace all 18 SVG files in `public/accessories/` with more detailed, stylized designs — thicker lines, gradients, more visual appeal similar to Reddit-style avatar accessories.
 
-### 4. Purchasable Accessories System
+**Files**: Replace all 18 `public/accessories/*.svg` files
 
-**Database (migration)**:
-- New table `shop_items`: id, name, category (`face`/`hand`/`head`), icon_url, price (100–100,000), description
-- New table `user_items`: id, user_id, item_id (FK → shop_items), is_equipped (bool), purchased_at, UNIQUE(user_id, item_id)
-- RPC `purchase_item(p_item_id uuid)`: atomic check-points → deduct → insert, security definer
-- Seed ~18 items:
-  - **Face**: Eye Mask (500), Sunglasses (800), Spy Goggles (2,000), Monocle (3,000), Gas Mask (10,000), Neon Visor (25,000)
-  - **Hand**: Guitar (1,500), Basketball (1,000), Katana (5,000), Magic Wand (8,000), Camera (2,500), Boombox (15,000)
-  - **Head**: Cowboy Hat (1,200), Crown (50,000), Ninja Hood (3,000), Viking Helmet (20,000), Wizard Hat (7,500), Space Helmet (100,000)
+### Fix 7: Equipped Items Show on Avatar
+The `AvatarWithAccessories` component already exists but isn't used everywhere. Update `ProfilePage.tsx`, `UserProfilePage.tsx`, `PostCard.tsx`, `ChatPage.tsx`, `GroupSettingsPage.tsx`, and `InboxPage.tsx` to:
+1. Fetch user's equipped items
+2. Render `<AvatarWithAccessories>` instead of `<AvatarImg>` showing head/face/hand overlays positioned on the avatar
 
-**SVG assets**: Create ~18 flat-design colored SVGs in `public/accessories/`
+**Files**: All components rendering avatars, plus `AvatarWithAccessories.tsx` positioning refinements
 
-**Shop UI** (`ShopPage.tsx`):
-- Inside Artifacts tab, add "Accessories" section with 3 sub-tabs: Face, Hand, Head
-- Each card: SVG preview, name, price, Buy button (or "Owned" badge)
-- Also add visual preview cards for **Profile Frames** (colored border rings), **Chat Bubbles** (gradient message styles), **Name Effects** (styled text) — all "Coming Soon"
+### Fix 8: Points Not Increasing on Messages
+There's a trigger `award_comment_point` on comments but **no trigger on messages**. Need a new database trigger on `messages` INSERT that increments the sender's points by 1.
 
-**Profile display**:
-- `ProfilePage.tsx`: "My Items" section, toggle equip/unequip (max 1 per category)
-- `UserProfilePage.tsx`: show equipped items publicly
-- New `src/components/AvatarWithAccessories.tsx`: renders avatar + equipped face/hand/head overlays
+**Database migration**: Create `award_message_point()` trigger function + trigger on `messages` table
 
-### 5. Chat Retention: 50 Messages
+### Fix 9: Gift Announcement in Chat
+When a gift is sent, insert a system message into the active conversation (group or DM) like "🎁 X sent Y a Diamond!" Update `GiftDialog.tsx` to accept an optional `conversationId` prop. After successful gift send, insert a message into that conversation. Update `UserProfilePage.tsx` and `ChatPage.tsx` to pass the conversation context.
 
-- Migration: update `cleanup_old_messages()` function from `rn > 100` to `rn > 50`
-- `ChatPage.tsx`: change `.limit(100)` to `.limit(50)`
+**Files**: `src/components/GiftDialog.tsx`, `src/pages/ChatPage.tsx` (add gift button in chat header for group chats)
+
+### Fix 10: Chat Bubble Colors
+Add a new table `bubble_colors` with color options and prices (500–10,000 pts). Add `bubble_color` column to `profiles`. In Shop, add a "Chat Bubbles" section where users buy colors. In `ChatPage.tsx`, fetch sender's bubble color and apply it to their message background.
+
+**Database migration**: 
+- New `bubble_colors` table (id, name, css_class, price)
+- Add `bubble_color` column to profiles (nullable text, stores CSS class)
+- New RPC `purchase_bubble_color`
+- Seed ~8 colors: Default (free), Ocean Blue (500), Sunset Orange (1000), Neon Green (1500), Royal Purple (3000), Rose Gold (5000), Diamond (8000), Aurora (10000)
+
+**Files**: `src/pages/ShopPage.tsx`, `src/pages/ChatPage.tsx`, `src/pages/ProfilePage.tsx`
 
 ---
 
@@ -82,22 +61,17 @@ Gift icons (🌸🧸💜💎) stay as-is — they are product icons, not UI indi
 
 | File | Action |
 |------|--------|
-| `public/avatars/*.svg` (20 files) | Create |
-| `public/accessories/*.svg` (~18 files) | Create |
-| `src/lib/avatars.ts` | Rewrite (SVG paths) |
-| `src/lib/badges.ts` | Rewrite (Lucide icon names) |
-| `src/lib/constants.ts` | Update gender icons |
-| `src/components/AvatarWithAccessories.tsx` | Create |
-| `src/pages/GroupSettingsPage.tsx` | Create |
-| `src/pages/ShopPage.tsx` | Major update |
-| `src/pages/ChatPage.tsx` | Simplify + icons |
-| `src/pages/ProfilePage.tsx` | Avatars + items + icons |
-| `src/pages/UserProfilePage.tsx` | Avatars + items + icons |
-| `src/pages/AdminPage.tsx` | Icons |
-| `src/pages/FeedPage.tsx` | Avatar rendering |
-| `src/pages/PostDetailPage.tsx` | Avatar rendering |
-| `src/pages/InboxPage.tsx` | Avatar rendering |
-| `src/components/PostCard.tsx` | Avatar + icons |
-| `src/App.tsx` | Add routes |
-| Migration SQL | `shop_items`, `user_items`, `purchase_item` RPC, seed data, update `cleanup_old_messages` |
+| `public/avatars/*.svg` (20) | Redesign with more detail |
+| `public/accessories/*.svg` (18) | Redesign with more detail |
+| `src/pages/GroupSettingsPage.tsx` | Fix demote visibility, add "Chat Mod" label |
+| `src/pages/AdminPage.tsx` | Add Users tab with search + ban/jail |
+| `src/components/AvatarWithAccessories.tsx` | Refine overlay positioning |
+| `src/pages/ProfilePage.tsx` | Use AvatarWithAccessories, add bubble color |
+| `src/pages/UserProfilePage.tsx` | Use AvatarWithAccessories |
+| `src/components/PostCard.tsx` | Use AvatarWithAccessories |
+| `src/pages/ChatPage.tsx` | Use AvatarWithAccessories, apply bubble colors, add gift button |
+| `src/pages/InboxPage.tsx` | Use AvatarWithAccessories |
+| `src/components/GiftDialog.tsx` | Add conversationId prop for chat announcements |
+| `src/pages/ShopPage.tsx` | Add Chat Bubbles section |
+| Migration SQL | Message points trigger, bubble_colors table, profiles.bubble_color column |
 
