@@ -389,6 +389,7 @@ export type Database = {
           created_at: string
           deleted_by_users: string[] | null
           id: string
+          image_url: string | null
           is_deleted_for_all: boolean | null
           reply_to_id: string | null
           sender_id: string
@@ -399,6 +400,7 @@ export type Database = {
           created_at?: string
           deleted_by_users?: string[] | null
           id?: string
+          image_url?: string | null
           is_deleted_for_all?: boolean | null
           reply_to_id?: string | null
           sender_id: string
@@ -409,6 +411,7 @@ export type Database = {
           created_at?: string
           deleted_by_users?: string[] | null
           id?: string
+          image_url?: string | null
           is_deleted_for_all?: boolean | null
           reply_to_id?: string | null
           sender_id?: string
@@ -976,9 +979,21 @@ export type Database = {
         Returns: boolean
       }
       cleanup_old_messages: { Args: never; Returns: undefined }
+      count_dm_messages: {
+        Args: { _conversation_id: string; _user_id: string }
+        Returns: number
+      }
       create_direct_conversation: {
         Args: { other_user_id: string }
         Returns: string
+      }
+      founder_demote_admin: {
+        Args: { _founder_id: string; _target_user_id: string }
+        Returns: Json
+      }
+      founder_promote_admin: {
+        Args: { _founder_id: string; _target_user_id: string }
+        Returns: Json
       }
       has_role: {
         Args: {
