@@ -22,15 +22,7 @@ interface Message {
   reply_preview?: string; reply_name?: string;
 }
 
-const BUBBLE_COLOR_MAP: Record<string, string> = {
-  'bg-primary': 'hsl(var(--primary))',
-  'bg-blue-600': '#2563eb',
-  'bg-orange-500': '#f97316',
-  'bg-emerald-500': '#10b981',
-  'bg-purple-600': '#9333ea',
-  'bg-pink-400': '#f472b6',
-  'bg-cyan-400': '#22d3ee',
-};
+import { getBubbleBackground } from '@/lib/bubbleColors';
 
 const ChatPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -208,11 +200,9 @@ const ChatPage: React.FC = () => {
 
   const getBubbleStyle = (bubbleColor: string | undefined, isMe: boolean) => {
     if (!isMe || !bubbleColor || bubbleColor === 'bg-primary') return {};
-    if (bubbleColor.includes('gradient')) {
-      return { background: 'linear-gradient(to right, #8b5cf6, #22d3ee)' };
-    }
-    const color = BUBBLE_COLOR_MAP[bubbleColor];
-    return color ? { backgroundColor: color } : {};
+    const bg = getBubbleBackground(bubbleColor);
+    if (!bg) return {};
+    return bg.startsWith('linear') ? { background: bg } : { backgroundColor: bg };
   };
 
   const isPrivateChat = convType === 'direct';
