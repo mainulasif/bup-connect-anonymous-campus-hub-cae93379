@@ -188,6 +188,8 @@ const AdminPage: React.FC = () => {
     if (result && !result.success) { toast.error(result.error || 'Failed'); return; }
     toast.success(action === 'unban' ? 'User unbanned' : 'User released from jail');
     handleSearchUsers();
+    fetchBannedUsers();
+    fetchJailedUsers();
   };
 
   const handleAppealResponse = async (appealId: string, approved: boolean) => {
