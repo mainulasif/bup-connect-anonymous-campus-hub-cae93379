@@ -1006,6 +1006,7 @@ export type Database = {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
       }
+      is_profile_admin: { Args: { _user_id: string }; Returns: boolean }
       is_user_admin: { Args: { _user_id: string }; Returns: boolean }
       is_user_banned: { Args: { _user_id: string }; Returns: boolean }
       purchase_bubble_color: { Args: { p_color_id: string }; Returns: Json }
