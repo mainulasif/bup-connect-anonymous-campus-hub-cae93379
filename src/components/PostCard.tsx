@@ -36,6 +36,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onRefresh }) => {
   const [banReason, setBanReason] = useState('');
   const isOwner = user?.id === post.user_id;
   const canPunish = isAdmin || isFounder;
+  const canDelete = isOwner || isAdmin || isFounder;
 
   const openProfile = () => {
     navigate(user?.id === post.user_id ? '/profile' : `/user/${post.user_id}`);
@@ -44,7 +45,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onRefresh }) => {
   const handleDelete = async () => {
     if (!user) return;
     const { error } = await supabase.from('posts').update({ is_deleted: true }).eq('id', post.id);
-    if (error) { toast.error('Failed to delete post'); return; }
+    if (error) { toast.error('Failed to delete post: ' + error.message); return; }
     toast.success('Post deleted');
     onRefresh();
   };
@@ -60,11 +61,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, onRefresh }) => {
     if (!user) return;
     const hasReacted = post.viewer_reactions?.includes(emoji);
     if (hasReacted) {
-      const { error } = await supabase.from('reactions').delete().eq('post_id', post.id).eq('user_id', user.id).eq('emoji', emoji);
-      if (error) { toast.error('Failed to update reaction'); return; }
+      await supabase.from('reactions').delete().eq('post_id', post.id).eq('user_id', user.id).eq('emoji', emoji);
     } else {
-      const { error } = await supabase.from('reactions').insert({ post_id: post.id, user_id: user.id, emoji });
-      if (error) { toast.error('Failed to update reaction'); return; }
+      await supabase.from('reactions').insert({ post_id: post.id, user_id: user.id, emoji });
     }
     onRefresh();
   };
@@ -72,11 +71,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, onRefresh }) => {
   const handlePunish = async () => {
     if (!user || !banReason.trim()) { toast.error('Reason is required'); return; }
     const duration = banDuration === 0 ? null : banDuration;
-    const { error } = await supabase.rpc('admin_punish_user', {
+    const { data, error } = await supabase.rpc('admin_punish_user', {
       _admin_id: user.id, _target_user_id: post.user_id, _action: punishAction,
       _duration_minutes: duration, _reason: banReason,
     });
     if (error) { toast.error('Failed: ' + error.message); return; }
+    const result = data as any;
+    if (result && !result.success) { toast.error(result.error || 'Failed'); return; }
     toast.success(`User ${punishAction === 'ban' ? 'banned' : 'sent to jail'}`);
     setPunishDialog(false);
     setBanReason('');
@@ -117,17 +118,17 @@ const PostCard: React.FC<PostCardProps> = ({ post, onRefresh }) => {
               <button onClick={() => navigate(`/post/${post.id}`)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
                 <MessageCircle className="w-4 h-4" />{post.comment_count}
               </button>
-              {(isOwner || isAdmin) && (
-                <button onClick={handleDelete} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
+              {canDelete && (
+                <button onClick={handleDelete} className="text-xs text-muted-foreground hover:text-destructive transition-colors" title="Delete post">
                   <Trash2 className="w-4 h-4" />
                 </button>
               )}
               {!isOwner && (
                 <>
-                  <button onClick={() => setShowReport(true)} className="text-xs text-muted-foreground hover:text-yellow-400 transition-colors">
+                  <button onClick={() => setShowReport(true)} className="text-xs text-muted-foreground hover:text-yellow-400 transition-colors" title="Report">
                     <Flag className="w-4 h-4" />
                   </button>
-                  <button onClick={handleBlock} className="text-xs text-muted-foreground hover:text-destructive transition-colors">
+                  <button onClick={handleBlock} className="text-xs text-muted-foreground hover:text-destructive transition-colors" title="Block user">
                     <Ban className="w-4 h-4" />
                   </button>
                 </>
@@ -163,7 +164,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onRefresh }) => {
             <Textarea placeholder="Reason..." value={banReason} onChange={e => setBanReason(e.target.value)} className="bg-background border-border min-h-[60px]" />
             <div className="flex gap-2">
               <Button variant="ghost" className="flex-1" onClick={() => setPunishDialog(false)}>Cancel</Button>
-              <Button variant="destructive" className="flex-1" onClick={handlePunish}>Confirm</Button>
+              <Button variant="destructive" className="flex-1" onClick={handlePunish} disabled={!banReason.trim()}>Confirm</Button>
             </div>
           </div>
         </div>

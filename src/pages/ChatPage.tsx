@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { ArrowLeft, Send, Settings, Bell, BellOff, Gift, Smile, Flag, Ban, Reply } from 'lucide-react';
+import { ArrowLeft, Send, Settings, Bell, BellOff, Gift, Smile, Flag, Ban, Reply, ImageIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
@@ -14,19 +14,18 @@ import StickerPicker from '@/components/StickerPicker';
 import { DELETE_FOR_EVERYONE_LIMIT_MS, BAN_DURATIONS } from '@/lib/constants';
 import { containsProfanity, censorText } from '@/lib/profanity';
 import { Textarea } from '@/components/ui/textarea';
+import { getBubbleBackground } from '@/lib/bubbleColors';
 
 interface Message {
   id: string; sender_id: string; content: string; created_at: string;
   anonymous_name: string; avatar_id: number; is_deleted_for_all: boolean;
   deleted_by_users: string[]; bubble_color?: string; reply_to_id?: string;
-  reply_preview?: string; reply_name?: string;
+  reply_preview?: string; reply_name?: string; image_url?: string;
 }
-
-import { getBubbleBackground } from '@/lib/bubbleColors';
 
 const ChatPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { user, isAdmin, isFounder } = useAuth();
+  const { user, isAdmin, isFounder, profile } = useAuth();
   const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -46,10 +45,14 @@ const ChatPage: React.FC = () => {
   const [banReason, setBanReason] = useState('');
   const [punishAction, setPunishAction] = useState<'ban' | 'jail'>('ban');
   const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set());
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const isGroup = convType === 'public_group' || convType === 'private_group';
   const canModerate = isAdmin || isFounder || myRole === 'creator' || myRole === 'moderator';
+  const isJailed = profile?.is_jailed;
+  const isBanned = profile?.is_banned;
 
   const fetchMessages = async () => {
     if (!id) return;
@@ -74,18 +77,14 @@ const ChatPage: React.FC = () => {
     setMyRole(myMembership?.role || 'member');
     setIsMuted(myMembership?.is_muted || false);
 
-    // Fetch blocked users
     if (user) {
       const { data: blocks } = await supabase.from('blocks').select('blocked_id').eq('blocker_id', user.id);
       setBlockedIds(new Set((blocks || []).map(b => b.blocked_id)));
     }
 
-    const { data, error } = await supabase
-      .from('messages')
-      .select('id, sender_id, content, created_at, is_deleted_for_all, deleted_by_users, reply_to_id')
-      .eq('conversation_id', id)
-      .order('created_at', { ascending: true })
-      .limit(50);
+    const { data, error } = await supabase.from('messages')
+      .select('id, sender_id, content, created_at, is_deleted_for_all, deleted_by_users, reply_to_id, image_url')
+      .eq('conversation_id', id).order('created_at', { ascending: true }).limit(50);
 
     if (error) { toast.error('Failed to load messages'); return; }
 
@@ -96,8 +95,7 @@ const ChatPage: React.FC = () => {
       : { data: [] as any[] };
 
     const nameMap = new Map((profiles || []).map(p => [p.user_id, { name: p.anonymous_name, avatar_id: p.avatar_id, bubble_color: p.bubble_color }]));
-    
-    // Build reply previews
+
     const replyIds = messageRows.filter(m => m.reply_to_id).map(m => m.reply_to_id!);
     const replyMap = new Map<string, { content: string; name: string }>();
     if (replyIds.length) {
@@ -115,14 +113,14 @@ const ChatPage: React.FC = () => {
       deleted_by_users: (m as any).deleted_by_users || [],
       reply_preview: m.reply_to_id ? replyMap.get(m.reply_to_id)?.content : undefined,
       reply_name: m.reply_to_id ? replyMap.get(m.reply_to_id)?.name : undefined,
+      image_url: (m as any).image_url || undefined,
     })));
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
   useEffect(() => {
     fetchMessages();
-    const channel = supabase
-      .channel(`chat-${id}`)
+    const channel = supabase.channel(`chat-${id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` }, () => fetchMessages())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -131,13 +129,15 @@ const ChatPage: React.FC = () => {
   const handleSend = async () => {
     if (!input.trim() || !user || !id) return;
     if (isMuted) { toast.error('You are muted in this chat'); return; }
+    if (isBanned) { toast.error('You are banned and cannot send messages'); return; }
+    if (isJailed && id !== '00000000-0000-0000-0000-000000000001') { toast.error('You are in Jail and can only chat in the Jail group'); return; }
     let msg = input.trim();
     if (containsProfanity(msg)) { msg = censorText(msg); toast.info('Profanity was filtered'); }
     setInput('');
     const insertData: any = { conversation_id: id, sender_id: user.id, content: msg };
     if (replyTo) insertData.reply_to_id = replyTo.id;
     const { error } = await supabase.from('messages').insert(insertData);
-    if (error) { setInput(msg); toast.error('Failed to send'); return; }
+    if (error) { setInput(msg); toast.error('Failed to send: ' + error.message); return; }
     setReplyTo(null);
     fetchMessages();
   };
@@ -145,8 +145,42 @@ const ChatPage: React.FC = () => {
   const handleStickerSend = async (sticker: string) => {
     if (!user || !id) return;
     if (isMuted) { toast.error('You are muted'); return; }
+    if (isBanned) { toast.error('You are banned'); return; }
+    if (isJailed && id !== '00000000-0000-0000-0000-000000000001') { toast.error('You are in Jail'); return; }
+    // For image-based stickers, send as content (the StickerPicker sends the image path)
     await supabase.from('messages').insert({ conversation_id: id, sender_id: user.id, content: sticker });
     fetchMessages();
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user || !id) return;
+    if (!file.type.startsWith('image/')) { toast.error('Only images are allowed'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error('Max 5MB'); return; }
+
+    // DM restriction: 3 messages each before images
+    if (convType === 'direct') {
+      const { data: myMsgCount } = await supabase.rpc('count_dm_messages', { _conversation_id: id, _user_id: user.id });
+      const otherUserId = giftReceiverId;
+      const { data: otherMsgCount } = await supabase.rpc('count_dm_messages', { _conversation_id: id, _user_id: otherUserId });
+      if ((myMsgCount || 0) < 3 || (otherMsgCount || 0) < 3) {
+        toast.error('Both users must send at least 3 text messages before sharing images in DMs');
+        return;
+      }
+    }
+
+    setUploading(true);
+    const filePath = `${user.id}/${Date.now()}-${file.name}`;
+    const { error: uploadError } = await supabase.storage.from('chat-images').upload(filePath, file);
+    if (uploadError) { toast.error('Upload failed'); setUploading(false); return; }
+    const { data: urlData } = supabase.storage.from('chat-images').getPublicUrl(filePath);
+    const imageUrl = urlData.publicUrl;
+    await supabase.from('messages').insert({
+      conversation_id: id, sender_id: user.id, content: '📷 Image', image_url: imageUrl,
+    });
+    setUploading(false);
+    fetchMessages();
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleJoin = async () => {
@@ -164,7 +198,7 @@ const ChatPage: React.FC = () => {
       const msg = messages.find(m => m.id === msgId);
       if (msg) {
         const elapsed = Date.now() - new Date(msg.created_at).getTime();
-        if (elapsed > DELETE_FOR_EVERYONE_LIMIT_MS && !isAdmin) {
+        if (elapsed > DELETE_FOR_EVERYONE_LIMIT_MS && !isAdmin && !isFounder) {
           toast.error('Cannot delete for everyone after 5 minutes');
           return;
         }
@@ -189,11 +223,13 @@ const ChatPage: React.FC = () => {
   const handlePunish = async () => {
     if (!banDialog || !user || !banReason.trim()) { toast.error('Reason is required'); return; }
     const duration = banDuration === 0 ? null : banDuration;
-    const { error } = await supabase.rpc('admin_punish_user', {
+    const { data, error } = await supabase.rpc('admin_punish_user', {
       _admin_id: user.id, _target_user_id: banDialog.userId, _action: punishAction,
       _duration_minutes: duration, _reason: banReason,
     });
     if (error) { toast.error('Failed: ' + error.message); return; }
+    const result = data as any;
+    if (result && !result.success) { toast.error(result.error || 'Failed'); return; }
     toast.success(`User ${punishAction === 'ban' ? 'banned' : 'jailed'}`);
     setBanDialog(null); setBanReason('');
   };
@@ -205,6 +241,7 @@ const ChatPage: React.FC = () => {
     return bg.startsWith('linear') ? { background: bg } : { backgroundColor: bg };
   };
 
+  const isImageContent = (content: string) => content.startsWith('/stickers/');
   const isPrivateChat = convType === 'direct';
 
   return (
@@ -213,14 +250,10 @@ const ChatPage: React.FC = () => {
         <button onClick={() => navigate('/inbox')}><ArrowLeft className="w-5 h-5" /></button>
         <h1 className="text-lg font-bold truncate flex-1">{convName}</h1>
         {isPrivateChat && giftReceiverId && (
-          <button onClick={() => setShowGift(true)} className="p-1 text-muted-foreground">
-            <Gift className="w-5 h-5" />
-          </button>
+          <button onClick={() => setShowGift(true)} className="p-1 text-muted-foreground"><Gift className="w-5 h-5" /></button>
         )}
         {isGroup && (
-          <button onClick={() => navigate(`/group/${id}/settings`)} className="p-1 text-muted-foreground">
-            <Settings className="w-5 h-5" />
-          </button>
+          <button onClick={() => navigate(`/group/${id}/settings`)} className="p-1 text-muted-foreground"><Settings className="w-5 h-5" /></button>
         )}
         <button onClick={handleMuteToggle} className={`p-1 ${isMuted ? 'text-destructive' : 'text-muted-foreground'}`}>
           {isMuted ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
@@ -243,29 +276,40 @@ const ChatPage: React.FC = () => {
           const isMe = m.sender_id === user?.id;
           const bubbleStyle = getBubbleStyle(m.bubble_color, isMe);
           const hasCustomBubble = isMe && Object.keys(bubbleStyle).length > 0;
+          const isStickerMsg = isImageContent(m.content);
           return (
             <div key={m.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
               <div
-                className={`max-w-[75%] rounded-2xl px-3 py-2 ${isMe ? (hasCustomBubble ? 'text-white rounded-br-sm' : 'bg-primary text-primary-foreground rounded-br-sm') : 'bg-card text-card-foreground rounded-bl-sm'}`}
-                style={bubbleStyle}
+                className={`max-w-[75%] ${isStickerMsg ? '' : `rounded-2xl px-3 py-2 ${isMe ? (hasCustomBubble ? 'text-white rounded-br-sm' : 'bg-primary text-primary-foreground rounded-br-sm') : 'bg-card text-card-foreground rounded-bl-sm'}`}`}
+                style={isStickerMsg ? {} : bubbleStyle}
                 onContextMenu={e => { e.preventDefault(); setContextMsg(contextMsg === m.id ? null : m.id); }}
                 onClick={() => setContextMsg(null)}>
-                {/* Reply preview */}
                 {m.reply_preview && (
                   <div className={`text-[10px] mb-1 px-2 py-1 rounded border-l-2 ${isMe ? 'border-white/40 bg-white/10' : 'border-primary/40 bg-primary/5'}`}>
                     <span className="font-medium">{m.reply_name}</span>
                     <p className="truncate opacity-70">{m.reply_preview}</p>
                   </div>
                 )}
-                {!isMe && (
+                {!isMe && !isStickerMsg && (
                   <button onClick={() => navigate(`/user/${m.sender_id}`)} className="text-xs font-medium text-primary mb-0.5 flex items-center gap-1">
                     <AvatarImg avatarId={m.avatar_id} size="sm" className="w-4 h-4" /> {m.anonymous_name}
                   </button>
                 )}
-                <p className="text-sm break-words">{m.content}</p>
-                <p className={`text-[10px] mt-0.5 ${isMe ? (hasCustomBubble ? 'text-white/60' : 'text-primary-foreground/60') : 'text-muted-foreground'}`}>
-                  {formatDistanceToNow(new Date(m.created_at), { addSuffix: true })}
-                </p>
+                {isStickerMsg ? (
+                  <img src={m.content} alt="sticker" className="w-32 h-32 object-contain" loading="lazy" />
+                ) : m.image_url ? (
+                  <div>
+                    <img src={m.image_url} alt="shared" className="rounded-lg max-w-full max-h-[200px] object-cover mb-1" loading="lazy" />
+                    {m.content !== '📷 Image' && <p className="text-sm break-words">{m.content}</p>}
+                  </div>
+                ) : (
+                  <p className="text-sm break-words">{m.content}</p>
+                )}
+                {!isStickerMsg && (
+                  <p className={`text-[10px] mt-0.5 ${isMe ? (hasCustomBubble ? 'text-white/60' : 'text-primary-foreground/60') : 'text-muted-foreground'}`}>
+                    {formatDistanceToNow(new Date(m.created_at), { addSuffix: true })}
+                  </p>
+                )}
                 {contextMsg === m.id && (
                   <div className="mt-1 flex flex-wrap gap-1">
                     <button onClick={e => { e.stopPropagation(); setReplyTo({ id: m.id, name: m.anonymous_name, content: m.content.slice(0, 50) }); setContextMsg(null); }}
@@ -308,12 +352,16 @@ const ChatPage: React.FC = () => {
             </div>
           )}
           {showStickers && <StickerPicker onSelect={handleStickerSend} onClose={() => setShowStickers(false)} />}
+          <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleImageUpload} />
           <div className="flex gap-2">
             <button onClick={() => setShowStickers(!showStickers)} className="p-2.5 text-muted-foreground hover:text-foreground">
               <Smile className="w-5 h-5" />
             </button>
-            <Input placeholder={isMuted ? 'You are muted' : 'Type a message...'} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} className="bg-card border-border" disabled={isMuted} />
-            <button onClick={handleSend} disabled={!input.trim() || isMuted} className="p-2.5 bg-primary text-primary-foreground rounded-lg disabled:opacity-50">
+            <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="p-2.5 text-muted-foreground hover:text-foreground disabled:opacity-50">
+              <ImageIcon className="w-5 h-5" />
+            </button>
+            <Input placeholder={isMuted ? 'You are muted' : isBanned ? 'You are banned' : 'Type a message...'} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} className="bg-card border-border" disabled={isMuted || isBanned} />
+            <button onClick={handleSend} disabled={!input.trim() || isMuted || isBanned || uploading} className="p-2.5 bg-primary text-primary-foreground rounded-lg disabled:opacity-50">
               <Send className="w-5 h-5" />
             </button>
           </div>
@@ -321,10 +369,7 @@ const ChatPage: React.FC = () => {
       )}
 
       <GiftDialog open={showGift} onClose={() => setShowGift(false)} receiverId={giftReceiverId} conversationId={id} />
-      
-      {reportTarget && (
-        <ReportDialog open={!!reportTarget} onClose={() => setReportTarget(null)} reportedUserId={reportTarget.userId} />
-      )}
+      {reportTarget && <ReportDialog open={!!reportTarget} onClose={() => setReportTarget(null)} reportedUserId={reportTarget.userId} />}
 
       {banDialog && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">

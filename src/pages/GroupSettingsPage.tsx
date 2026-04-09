@@ -2,30 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { ArrowLeft, LogOut, ChevronUp, ChevronDown, UserMinus, MessageCircle, Pin, BookOpen, Copy, User, UserRound } from 'lucide-react';
+import { ArrowLeft, LogOut, ChevronUp, ChevronDown, UserMinus, MessageCircle, Pin, BookOpen, Copy, User, UserRound, Ban, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import AvatarImg from '@/components/AvatarImg';
+import { BAN_DURATIONS } from '@/lib/constants';
 
 interface Member {
-  user_id: string;
-  role: string;
-  anonymous_name: string;
-  username: string;
-  age: number | null;
-  gender: string;
-  points: number;
-  avatar_id: number;
-  is_online: boolean;
+  user_id: string; role: string; anonymous_name: string; username: string;
+  age: number | null; gender: string; points: number; avatar_id: number;
+  is_online: boolean; is_banned: boolean; is_jailed: boolean;
 }
 
-interface PinnedMsg {
-  id: string;
-  content: string;
-  pinned_by: string;
-  created_at: string;
-}
+interface PinnedMsg { id: string; content: string; pinned_by: string; created_at: string; }
 
 const GroupSettingsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -42,9 +33,14 @@ const GroupSettingsPage: React.FC = () => {
   const [editingRules, setEditingRules] = useState(false);
   const [rulesText, setRulesText] = useState('');
   const [newPin, setNewPin] = useState('');
+  const [punishDialog, setPunishDialog] = useState<{ userId: string; name: string } | null>(null);
+  const [punishAction, setPunishAction] = useState<'ban' | 'jail'>('jail');
+  const [banDuration, setBanDuration] = useState(1440);
+  const [banReason, setBanReason] = useState('');
 
   const canModerate = isAdmin || isFounder || myRole === 'creator' || myRole === 'moderator';
   const canPromoteDemote = isAdmin || isFounder || myRole === 'creator';
+  const canPunish = isAdmin || isFounder;
 
   const fetchData = async () => {
     if (!id) return;
@@ -63,7 +59,7 @@ const GroupSettingsPage: React.FC = () => {
     const { data: memberRows } = await supabase.from('conversation_members').select('user_id, role').eq('conversation_id', id);
     if (memberRows?.length) {
       const userIds = memberRows.map(m => m.user_id);
-      const { data: profiles } = await supabase.from('profiles').select('user_id, anonymous_name, username, age, gender, points, avatar_id, is_online').in('user_id', userIds);
+      const { data: profiles } = await supabase.from('profiles').select('user_id, anonymous_name, username, age, gender, points, avatar_id, is_online, is_banned, is_jailed').in('user_id', userIds);
       const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
       setMembers(memberRows.map(m => {
         const p = profileMap.get(m.user_id);
@@ -72,6 +68,7 @@ const GroupSettingsPage: React.FC = () => {
           anonymous_name: p?.anonymous_name || 'Anonymous', username: p?.username || '',
           age: p?.age || null, gender: p?.gender || 'unspecified',
           points: p?.points || 0, avatar_id: p?.avatar_id || 1, is_online: p?.is_online || false,
+          is_banned: p?.is_banned || false, is_jailed: p?.is_jailed || false,
         };
       }));
     }
@@ -101,7 +98,7 @@ const GroupSettingsPage: React.FC = () => {
     if (!id || !user) return;
     await supabase.from('conversation_members').update({ role }).eq('conversation_id', id).eq('user_id', targetId);
     await supabase.from('audit_log').insert({ actor_id: user.id, action: role === 'moderator' ? 'promote_moderator' : 'demote_moderator', target_user_id: targetId, details: { conversation_id: id } });
-    toast.success(`User ${role === 'moderator' ? 'promoted' : 'demoted'}`);
+    toast.success(`User ${role === 'moderator' ? 'promoted to Chat Mod' : 'demoted to Member'}`);
     fetchData();
   };
 
@@ -128,16 +125,50 @@ const GroupSettingsPage: React.FC = () => {
     toast.success('Announcement pinned');
   };
 
+  const handlePunish = async () => {
+    if (!punishDialog || !user || !banReason.trim()) { toast.error('Reason is required'); return; }
+    const duration = banDuration === 0 ? null : banDuration;
+    const { data, error } = await supabase.rpc('admin_punish_user', {
+      _admin_id: user.id, _target_user_id: punishDialog.userId, _action: punishAction,
+      _duration_minutes: duration, _reason: banReason,
+    });
+    if (error) { toast.error('Failed: ' + error.message); return; }
+    const result = data as any;
+    if (result && !result.success) { toast.error(result.error || 'Failed'); return; }
+    toast.success(`User ${punishAction === 'ban' ? 'banned' : 'sent to jail'}`);
+    setPunishDialog(null); setBanReason('');
+    fetchData();
+  };
+
   const GenderIconSmall: React.FC<{ value: string }> = ({ value }) => {
     if (value === 'male') return <User className="w-3 h-3 text-muted-foreground" />;
     if (value === 'female') return <UserRound className="w-3 h-3 text-muted-foreground" />;
     return null;
   };
 
-  const getRoleLabel = (role: string) => {
-    if (role === 'creator') return { label: 'Creator', className: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' };
-    if (role === 'moderator') return { label: 'Chat Mod', className: 'bg-pink-500/20 text-pink-400 border-pink-500/30' };
+  const getRoleLabel = (m: Member) => {
+    // Founder check (is the creator of the group AND is_admin or isFounder)
+    if (m.user_id === createdBy) return { label: 'Creator', className: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' };
+    if (m.role === 'moderator') return { label: 'Chat Mod', className: 'bg-pink-500/20 text-pink-400 border-pink-500/30' };
     return null;
+  };
+
+  const getStatusLabel = (m: Member) => {
+    if (m.is_banned) return { label: 'Banned', className: 'bg-red-500/20 text-red-400 border-red-500/30' };
+    if (m.is_jailed) return { label: 'Jailed', className: 'bg-orange-500/20 text-orange-400 border-orange-500/30' };
+    return null;
+  };
+
+  // Hierarchy check: can the current user moderate this member?
+  const canActOn = (m: Member) => {
+    if (m.user_id === user?.id) return false;
+    // Founder can act on everyone
+    if (isFounder) return true;
+    // Admin can act on non-admin, non-founder
+    if (isAdmin && m.role !== 'creator') return true;
+    // Creator can act on non-admin members
+    if (myRole === 'creator' && m.role !== 'creator') return true;
+    return false;
   };
 
   return (
@@ -148,7 +179,6 @@ const GroupSettingsPage: React.FC = () => {
       </header>
 
       <div className="p-4 space-y-4">
-        {/* Group Info */}
         <div className="bg-card rounded-xl border border-border p-4 space-y-2">
           <h2 className="text-lg font-bold">{convName}</h2>
           <p className="text-xs text-muted-foreground">{convType === 'public_group' ? 'Public Group' : 'Private Group'} · {members.length} members</p>
@@ -167,7 +197,6 @@ const GroupSettingsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Rules */}
         <div className="bg-card rounded-xl border border-border p-4 space-y-2">
           <div className="flex items-center gap-2">
             <BookOpen className="w-4 h-4 text-muted-foreground" />
@@ -189,7 +218,6 @@ const GroupSettingsPage: React.FC = () => {
           )}
         </div>
 
-        {/* Pinned */}
         <div className="bg-card rounded-xl border border-border p-4 space-y-2">
           <div className="flex items-center gap-2">
             <Pin className="w-4 h-4 text-muted-foreground" />
@@ -207,22 +235,27 @@ const GroupSettingsPage: React.FC = () => {
           )}
         </div>
 
-        {/* Members */}
         <div className="bg-card rounded-xl border border-border p-4 space-y-2">
           <h3 className="text-sm font-semibold">Members ({members.length})</h3>
           <div className="space-y-1">
             {members.map(m => {
-              const roleInfo = getRoleLabel(m.role);
+              const roleInfo = getRoleLabel(m);
+              const statusInfo = getStatusLabel(m);
               return (
                 <div key={m.user_id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
                   <AvatarImg avatarId={m.avatar_id} size="sm" />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-sm font-medium truncate">{m.anonymous_name}</span>
                       <span className={`w-1.5 h-1.5 rounded-full ${m.is_online ? 'bg-green-500' : 'bg-muted-foreground'}`}></span>
                       {roleInfo && (
                         <span className={`text-[9px] font-semibold rounded-full border px-1.5 py-0.5 ${roleInfo.className}`}>
                           {roleInfo.label}
+                        </span>
+                      )}
+                      {statusInfo && (
+                        <span className={`text-[9px] font-semibold rounded-full border px-1.5 py-0.5 ${statusInfo.className}`}>
+                          {statusInfo.label}
                         </span>
                       )}
                     </div>
@@ -241,9 +274,9 @@ const GroupSettingsPage: React.FC = () => {
                         supabase.rpc('create_direct_conversation', { other_user_id: m.user_id }).then(({ data }) => {
                           if (data) navigate(`/chat/${data}`);
                         });
-                      }} className="p-1 text-muted-foreground hover:text-primary"><MessageCircle className="w-3.5 h-3.5" /></button>
+                      }} className="p-1 text-muted-foreground hover:text-primary" title="Message"><MessageCircle className="w-3.5 h-3.5" /></button>
                     )}
-                    {canPromoteDemote && m.user_id !== user?.id && m.role !== 'creator' && (
+                    {canPromoteDemote && canActOn(m) && (
                       <>
                         {m.role === 'member' && (
                           <button onClick={() => handlePromote(m.user_id, 'moderator')} className="p-1 text-muted-foreground hover:text-primary" title="Promote to Chat Mod">
@@ -257,8 +290,13 @@ const GroupSettingsPage: React.FC = () => {
                         )}
                       </>
                     )}
-                    {canModerate && m.user_id !== user?.id && m.role !== 'creator' && (
-                      <button onClick={() => handleKick(m.user_id)} className="p-1 text-muted-foreground hover:text-destructive"><UserMinus className="w-3.5 h-3.5" /></button>
+                    {canPunish && canActOn(m) && (
+                      <button onClick={() => setPunishDialog({ userId: m.user_id, name: m.anonymous_name })} className="p-1 text-muted-foreground hover:text-orange-400" title="Ban / Jail">
+                        <Lock className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {canModerate && canActOn(m) && (
+                      <button onClick={() => handleKick(m.user_id)} className="p-1 text-muted-foreground hover:text-destructive" title="Remove"><UserMinus className="w-3.5 h-3.5" /></button>
                     )}
                   </div>
                 </div>
@@ -267,6 +305,30 @@ const GroupSettingsPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {punishDialog && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg p-6 w-full max-w-sm space-y-4">
+            <h3 className="text-lg font-bold">Punish {punishDialog.name}</h3>
+            <div className="flex gap-2">
+              <Button size="sm" variant={punishAction === 'ban' ? 'default' : 'ghost'} onClick={() => setPunishAction('ban')}>
+                <Ban className="w-3 h-3 mr-1" /> Ban
+              </Button>
+              <Button size="sm" variant={punishAction === 'jail' ? 'default' : 'ghost'} onClick={() => setPunishAction('jail')}>
+                <Lock className="w-3 h-3 mr-1" /> Jail
+              </Button>
+            </div>
+            <select value={banDuration} onChange={e => setBanDuration(Number(e.target.value))} className="w-full bg-background border border-border rounded-lg p-2 text-sm text-foreground">
+              {BAN_DURATIONS.map(d => <option key={d.minutes} value={d.minutes}>{d.label}</option>)}
+            </select>
+            <Textarea placeholder="Reason (required)" value={banReason} onChange={e => setBanReason(e.target.value)} className="bg-background border-border min-h-[60px]" maxLength={500} />
+            <div className="flex gap-2">
+              <Button variant="ghost" className="flex-1" onClick={() => setPunishDialog(null)}>Cancel</Button>
+              <Button variant="destructive" className="flex-1" onClick={handlePunish} disabled={!banReason.trim()}>Confirm</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

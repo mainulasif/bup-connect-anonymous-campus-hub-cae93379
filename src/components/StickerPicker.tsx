@@ -29,10 +29,8 @@ const StickerPicker: React.FC<StickerPickerProps> = ({ onSelect, onClose }) => {
   useEffect(() => {
     const fetch = async () => {
       if (!user) return;
-      // Get owned packs
       const { data: owned } = await supabase.from('user_sticker_packs').select('pack_id').eq('user_id', user.id);
       const ownedIds = (owned || []).map(o => o.pack_id);
-      // Also include free packs
       const { data: allPacks } = await supabase.from('sticker_packs').select('*');
       const freePacks = (allPacks || []).filter((p: any) => p.is_free);
       const freeIds = freePacks.map((p: any) => p.id);
@@ -49,29 +47,40 @@ const StickerPicker: React.FC<StickerPickerProps> = ({ onSelect, onClose }) => {
   }, [user]);
 
   const activeStickers = stickers.filter(s => s.pack_id === activePack);
+  const isImageSticker = (emoji: string) => emoji.startsWith('/');
 
   return (
-    <div className="absolute bottom-full mb-2 left-0 right-0 bg-card border border-border rounded-xl p-3 shadow-lg animate-fade-in max-h-[200px] overflow-hidden">
+    <div className="absolute bottom-full mb-2 left-0 right-0 bg-card border border-border rounded-xl p-3 shadow-lg animate-fade-in max-h-[280px] overflow-hidden">
       <div className="flex justify-between items-center mb-2">
         <div className="flex gap-1 overflow-x-auto">
           {ownedPacks.map(p => (
             <button key={p.id} onClick={() => setActivePack(p.id)}
-              className={`px-2 py-1 text-xs rounded-lg whitespace-nowrap ${activePack === p.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-              {p.icon_url} {p.name}
+              className={`px-2 py-1 text-xs rounded-lg whitespace-nowrap flex items-center gap-1 ${activePack === p.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+              {isImageSticker(p.icon_url) ? (
+                <img src={p.icon_url} alt="" className="w-4 h-4 rounded" />
+              ) : (
+                <span>{p.icon_url}</span>
+              )}
+              <span>{p.name}</span>
             </button>
           ))}
         </div>
         <button onClick={onClose} className="text-xs text-muted-foreground ml-2">✕</button>
       </div>
-      <div className="grid grid-cols-6 gap-2 overflow-y-auto max-h-[130px]">
+      <div className="grid grid-cols-4 gap-2 overflow-y-auto max-h-[210px] p-1">
         {activeStickers.map(s => (
           <button key={s.id} onClick={() => { onSelect(s.emoji); onClose(); }}
-            className="text-2xl hover:bg-muted rounded-lg p-1 transition-colors">
-            {s.emoji}
+            className="flex flex-col items-center gap-0.5 hover:bg-muted rounded-lg p-1.5 transition-colors">
+            {isImageSticker(s.emoji) ? (
+              <img src={s.emoji} alt={s.label} className="w-12 h-12 object-contain" loading="lazy" />
+            ) : (
+              <span className="text-2xl">{s.emoji}</span>
+            )}
+            <span className="text-[9px] text-muted-foreground truncate w-full text-center">{s.label}</span>
           </button>
         ))}
         {activeStickers.length === 0 && (
-          <p className="col-span-6 text-xs text-muted-foreground text-center py-4">No stickers in this pack</p>
+          <p className="col-span-4 text-xs text-muted-foreground text-center py-4">No stickers in this pack</p>
         )}
       </div>
     </div>
