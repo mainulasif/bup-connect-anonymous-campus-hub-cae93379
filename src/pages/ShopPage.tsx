@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { CreditCard, CheckCircle, ShoppingBag, Palette } from 'lucide-react';
+import { CreditCard, CheckCircle, ShoppingBag, Palette, Smile } from 'lucide-react';
 import { GIFT_EMOJI } from '@/lib/gifts';
 
 interface ShopItem {
@@ -13,18 +13,24 @@ interface ShopItem {
 interface BubbleColor {
   id: string; name: string; css_class: string; price: number;
 }
+interface StickerPack {
+  id: string; name: string; icon_url: string; price: number; is_free: boolean;
+}
 
 const ShopPage: React.FC = () => {
   const { profile, user, refreshProfile } = useAuth();
   const [transactionId, setTransactionId] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [tab, setTab] = useState<'subscription' | 'artifacts'>('subscription');
-  const [artifactTab, setArtifactTab] = useState<'gifts' | 'accessories' | 'bubbles'>('gifts');
+  const [artifactTab, setArtifactTab] = useState<'gifts' | 'accessories' | 'bubbles' | 'stickers'>('gifts');
   const [accessoryCategory, setAccessoryCategory] = useState<'face' | 'hand' | 'head'>('face');
   const [shopItems, setShopItems] = useState<ShopItem[]>([]);
   const [ownedItemIds, setOwnedItemIds] = useState<Set<string>>(new Set());
   const [purchasing, setPurchasing] = useState(false);
   const [bubbleColors, setBubbleColors] = useState<BubbleColor[]>([]);
+  const [ownedColorIds, setOwnedColorIds] = useState<Set<string>>(new Set());
+  const [stickerPacks, setStickerPacks] = useState<StickerPack[]>([]);
+  const [ownedPackIds, setOwnedPackIds] = useState<Set<string>>(new Set());
 
   const giftCatalog = [
     { name: 'Black Orchid', price: '1,000 pts', emoji: GIFT_EMOJI['Black Orchid'] },
@@ -34,15 +40,23 @@ const ShopPage: React.FC = () => {
   ];
 
   const fetchShopData = async () => {
-    const [itemsRes, bubblesRes] = await Promise.all([
+    const [itemsRes, bubblesRes, stickersRes] = await Promise.all([
       supabase.from('shop_items').select('*').order('price', { ascending: true }),
       supabase.from('bubble_colors').select('*').order('price', { ascending: true }),
+      supabase.from('sticker_packs').select('*').order('price', { ascending: true }),
     ]);
     setShopItems((itemsRes.data || []) as ShopItem[]);
     setBubbleColors((bubblesRes.data || []) as BubbleColor[]);
+    setStickerPacks((stickersRes.data || []) as StickerPack[]);
     if (user) {
-      const { data: owned } = await supabase.from('user_items').select('item_id').eq('user_id', user.id);
-      setOwnedItemIds(new Set((owned || []).map(o => o.item_id)));
+      const [ownedRes, colorRes, packRes] = await Promise.all([
+        supabase.from('user_items').select('item_id').eq('user_id', user.id),
+        supabase.from('purchased_bubble_colors').select('color_id').eq('user_id', user.id),
+        supabase.from('user_sticker_packs').select('pack_id').eq('user_id', user.id),
+      ]);
+      setOwnedItemIds(new Set((ownedRes.data || []).map(o => o.item_id)));
+      setOwnedColorIds(new Set((colorRes.data || []).map(o => o.color_id)));
+      setOwnedPackIds(new Set((packRes.data || []).map(o => o.pack_id)));
     }
   };
 
@@ -77,6 +91,20 @@ const ShopPage: React.FC = () => {
     if (!result?.success) { toast.error(result?.error || 'Purchase failed'); return; }
     toast.success(`Bubble color applied! ${result.points_spent} points spent`);
     refreshProfile();
+    fetchShopData();
+  };
+
+  const handleBuyStickerPack = async (packId: string) => {
+    if (!user) return;
+    setPurchasing(true);
+    const { data, error } = await supabase.rpc('purchase_sticker_pack', { p_pack_id: packId });
+    setPurchasing(false);
+    if (error) { toast.error('Purchase failed'); return; }
+    const result = data as any;
+    if (!result?.success) { toast.error(result?.error || 'Purchase failed'); return; }
+    toast.success(`Sticker pack unlocked! ${result.points_spent} points spent`);
+    refreshProfile();
+    fetchShopData();
   };
 
   const filteredItems = shopItems.filter(i => i.category === accessoryCategory);
@@ -127,8 +155,8 @@ const ShopPage: React.FC = () => {
               </div>
               <ul className="space-y-2 text-sm text-foreground/80">
                 <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> Ad-free experience</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> Premium accessories (coming soon)</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> Custom stickers (coming soon)</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> Premium accessories</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> Exclusive stickers</li>
                 <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> Priority support</li>
               </ul>
             </div>
@@ -159,19 +187,13 @@ const ShopPage: React.FC = () => {
           </>
         ) : (
           <>
-            <div className="grid grid-cols-3 gap-2 rounded-xl border border-border bg-card p-1">
-              <button onClick={() => setArtifactTab('gifts')}
-                className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${artifactTab === 'gifts' ? 'bg-background text-foreground' : 'text-muted-foreground'}`}>
-                Gifts
-              </button>
-              <button onClick={() => setArtifactTab('accessories')}
-                className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${artifactTab === 'accessories' ? 'bg-background text-foreground' : 'text-muted-foreground'}`}>
-                Accessories
-              </button>
-              <button onClick={() => setArtifactTab('bubbles')}
-                className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${artifactTab === 'bubbles' ? 'bg-background text-foreground' : 'text-muted-foreground'}`}>
-                Bubbles
-              </button>
+            <div className="grid grid-cols-4 gap-1 rounded-xl border border-border bg-card p-1">
+              {(['gifts', 'accessories', 'bubbles', 'stickers'] as const).map(t => (
+                <button key={t} onClick={() => setArtifactTab(t)}
+                  className={`rounded-lg px-2 py-2 text-xs font-medium transition-colors ${artifactTab === t ? 'bg-background text-foreground' : 'text-muted-foreground'}`}>
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
             </div>
 
             {artifactTab === 'gifts' ? (
@@ -217,31 +239,41 @@ const ShopPage: React.FC = () => {
                     );
                   })}
                 </div>
-                {/* Coming Soon */}
-                <div className="space-y-3">
-                  <h4 className="text-sm font-semibold text-muted-foreground">Coming Soon</h4>
-                  <div className="grid grid-cols-3 gap-2">
-                    {['Profile Frames', 'Name Effects', 'Stickers'].map(item => (
-                      <div key={item} className="rounded-xl border border-border bg-card/50 p-3 text-center">
-                        <div className="w-10 h-10 mx-auto mb-1 rounded-full bg-muted flex items-center justify-center">
-                          <ShoppingBag className="w-4 h-4 text-muted-foreground" />
-                        </div>
-                        <p className="text-[10px] font-medium text-muted-foreground">{item}</p>
+              </div>
+            ) : artifactTab === 'stickers' ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">Buy sticker packs to use in chats.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {stickerPacks.map(pack => {
+                    const owned = ownedPackIds.has(pack.id) || pack.is_free;
+                    return (
+                      <div key={pack.id} className={`rounded-xl border p-4 text-center space-y-2 ${owned ? 'border-green-500/30 bg-green-500/5' : 'border-border bg-card'}`}>
+                        <div className="text-4xl leading-none">{pack.icon_url}</div>
+                        <p className="text-sm font-medium">{pack.name}</p>
+                        <p className="text-xs font-bold text-primary">{pack.is_free ? 'Free' : `${pack.price.toLocaleString()} pts`}</p>
+                        {owned ? (
+                          <span className="inline-block text-[10px] bg-green-500/20 text-green-400 rounded-full px-2 py-0.5">Owned</span>
+                        ) : (
+                          <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => handleBuyStickerPack(pack.id)} disabled={purchasing}>
+                            <Smile className="w-3 h-3 mr-1" /> Buy
+                          </Button>
+                        )}
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
               </div>
             ) : (
               /* Chat Bubbles */
               <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">Customize your chat bubble color. Active color applies to all your messages.</p>
+                <p className="text-sm text-muted-foreground">Buy and switch between chat bubble colors anytime. Owned colors are saved.</p>
                 <div className="grid grid-cols-2 gap-3">
                   {bubbleColors.map(bc => {
                     const isActive = (profile as any)?.bubble_color === bc.css_class;
+                    const owned = ownedColorIds.has(bc.id) || bc.price === 0;
                     const previewColor = bubblePreviewColors[bc.css_class] || '#6366f1';
                     return (
-                      <div key={bc.id} className={`rounded-xl border p-4 text-center space-y-2 ${isActive ? 'border-primary bg-primary/10' : 'border-border bg-card'}`}>
+                      <div key={bc.id} className={`rounded-xl border p-4 text-center space-y-2 ${isActive ? 'border-primary bg-primary/10' : owned ? 'border-green-500/30' : 'border-border bg-card'}`}>
                         <div className="w-full h-8 rounded-lg flex items-center justify-center" style={{ background: bc.css_class.includes('gradient') ? 'linear-gradient(to right, #8b5cf6, #22d3ee)' : previewColor }}>
                           <span className="text-white text-xs font-medium">Hello!</span>
                         </div>
@@ -249,9 +281,13 @@ const ShopPage: React.FC = () => {
                         <p className="text-xs font-bold text-primary">{bc.price === 0 ? 'Free' : `${bc.price.toLocaleString()} pts`}</p>
                         {isActive ? (
                           <span className="inline-block text-[10px] bg-green-500/20 text-green-400 rounded-full px-2 py-0.5">Active</span>
+                        ) : owned ? (
+                          <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => handleBuyBubble(bc.id)} disabled={purchasing}>
+                            <Palette className="w-3 h-3 mr-1" /> Apply
+                          </Button>
                         ) : (
                           <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => handleBuyBubble(bc.id)} disabled={purchasing}>
-                            <Palette className="w-3 h-3 mr-1" /> {bc.price === 0 ? 'Apply' : 'Buy'}
+                            <Palette className="w-3 h-3 mr-1" /> Buy
                           </Button>
                         )}
                       </div>

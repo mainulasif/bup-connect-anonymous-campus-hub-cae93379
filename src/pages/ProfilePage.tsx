@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { LogOut, Settings, Shield, Bell, Search, User, UserRound, Lock, Ban as BanIcon } from 'lucide-react';
+import { LogOut, Settings, Shield, Bell, Search, User, UserRound, Lock, Ban as BanIcon, Palette } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { PROFILE_GIFT_FIELDS } from '@/lib/gifts';
@@ -16,6 +16,7 @@ import AvatarImg from '@/components/AvatarImg';
 import { GENDER_OPTIONS } from '@/lib/constants';
 
 interface BlockedUser { blocked_id: string; anonymous_name: string; }
+interface OwnedColor { color_id: string; css_class: string; name: string; }
 
 const GenderIcon: React.FC<{ value: string }> = ({ value }) => {
   if (value === 'male') return <User className="w-4 h-4" />;
@@ -38,6 +39,7 @@ const ProfilePage: React.FC = () => {
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [userItems, setUserItems] = useState<any[]>([]);
   const [equippedItems, setEquippedItems] = useState<any[]>([]);
+  const [ownedColors, setOwnedColors] = useState<OwnedColor[]>([]);
 
   useEffect(() => {
     if (profile) {
@@ -69,7 +71,16 @@ const ProfilePage: React.FC = () => {
     })));
   };
 
-  useEffect(() => { fetchBlockedUsers(); fetchUserItems(); }, [user]);
+  const fetchOwnedColors = async () => {
+    if (!user) return;
+    const { data: purchased } = await supabase.from('purchased_bubble_colors').select('color_id').eq('user_id', user.id);
+    if (!purchased?.length) { setOwnedColors([]); return; }
+    const colorIds = purchased.map(p => p.color_id);
+    const { data: colors } = await supabase.from('bubble_colors').select('id, name, css_class').in('id', colorIds);
+    setOwnedColors((colors || []).map(c => ({ color_id: c.id, css_class: c.css_class, name: c.name })));
+  };
+
+  useEffect(() => { fetchBlockedUsers(); fetchUserItems(); fetchOwnedColors(); }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -116,9 +127,20 @@ const ProfilePage: React.FC = () => {
     toast.success(currentlyEquipped ? 'Unequipped' : 'Equipped!');
   };
 
+  const handleSwitchBubbleColor = async (cssClass: string) => {
+    if (!user) return;
+    await supabase.from('profiles').update({ bubble_color: cssClass }).eq('user_id', user.id);
+    toast.success('Bubble color switched!');
+    refreshProfile();
+  };
+
   if (!profile) return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
 
   const badges = getUserBadges(profile, isFounder);
+  const BUBBLE_PREVIEW: Record<string, string> = {
+    'bg-primary': 'hsl(var(--primary))', 'bg-blue-600': '#2563eb', 'bg-orange-500': '#f97316',
+    'bg-emerald-500': '#10b981', 'bg-purple-600': '#9333ea', 'bg-pink-400': '#f472b6', 'bg-cyan-400': '#22d3ee',
+  };
 
   return (
     <div className="max-w-lg mx-auto pb-20">
@@ -140,11 +162,11 @@ const ProfilePage: React.FC = () => {
             <AvatarWithAccessories avatarId={avatarId} equippedItems={equippedItems} size="lg" />
           </button>
           {showAvatarPicker && editing && (
-            <div className="grid grid-cols-5 gap-2 p-3 bg-card rounded-lg border border-border max-w-[280px]">
+            <div className="grid grid-cols-5 gap-2 p-3 bg-card rounded-lg border border-border max-w-[300px]">
               {AVATARS.map(a => (
                 <button key={a.id} onClick={() => { setAvatarId(a.id); setShowAvatarPicker(false); }}
                   className={`w-12 h-12 rounded-lg flex items-center justify-center transition-colors ${avatarId === a.id ? 'bg-primary/20 border-2 border-primary' : 'bg-background border border-border hover:bg-muted'}`}>
-                  <img src={a.src} alt={a.label} className="w-10 h-10 rounded-lg" />
+                  <img src={a.src} alt={a.label} className="w-10 h-10 rounded-lg object-cover" loading="lazy" />
                 </button>
               ))}
             </div>
@@ -216,6 +238,25 @@ const ProfilePage: React.FC = () => {
                   <p className="text-[9px] text-muted-foreground">{item.is_equipped ? 'Equipped' : 'Tap to equip'}</p>
                 </button>
               ))}
+            </div>
+          </section>
+        )}
+
+        {ownedColors.length > 0 && (
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold flex items-center gap-1"><Palette className="w-4 h-4" /> My Bubble Colors</h3>
+            <div className="flex flex-wrap gap-2">
+              {ownedColors.map(c => {
+                const isActive = (profile as any)?.bubble_color === c.css_class;
+                const bg = BUBBLE_PREVIEW[c.css_class] || '#6366f1';
+                return (
+                  <button key={c.color_id} onClick={() => handleSwitchBubbleColor(c.css_class)}
+                    className={`rounded-lg px-3 py-2 text-xs border transition-colors ${isActive ? 'border-primary ring-2 ring-primary/30' : 'border-border'}`}>
+                    <div className="w-6 h-6 rounded-full mx-auto mb-1" style={{ background: c.css_class.includes('gradient') ? 'linear-gradient(to right, #8b5cf6, #22d3ee)' : bg }} />
+                    <span>{c.name}</span>
+                  </button>
+                );
+              })}
             </div>
           </section>
         )}
