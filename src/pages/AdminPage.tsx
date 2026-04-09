@@ -5,11 +5,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Trash2, Ban, X, Eye, Clock, Shield, Users, Gavel, FileText, Download } from 'lucide-react';
+import { ArrowLeft, Trash2, Ban, X, Eye, Clock, Shield, Users, Gavel, FileText, Download, Lock, BanIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { BAN_DURATIONS } from '@/lib/constants';
-import { getAvatar } from '@/lib/avatars';
 
 interface Report {
   id: string;
@@ -66,8 +65,6 @@ const AdminPage: React.FC = () => {
     if (reportFilter === 'pending') q = q.eq('status', 'pending');
     const { data } = await q;
     const rows = (data || []) as Report[];
-    
-    // Get reporter and reported names
     const allUserIds = [...new Set([...rows.map(r => r.reporter_id), ...rows.filter(r => r.reported_user_id).map(r => r.reported_user_id!)])];
     if (allUserIds.length) {
       const { data: profiles } = await supabase.from('profiles').select('user_id, anonymous_name').in('user_id', allUserIds);
@@ -77,9 +74,6 @@ const AdminPage: React.FC = () => {
         r.reported_name = r.reported_user_id ? nameMap.get(r.reported_user_id) || 'Unknown' : undefined;
       });
     }
-
-    // Count reports per target
-    const contentIds = rows.filter(r => r.reported_post_id).map(r => r.reported_post_id);
     rows.forEach(r => {
       r.report_count = rows.filter(x => 
         (r.reported_post_id && x.reported_post_id === r.reported_post_id) ||
@@ -87,7 +81,6 @@ const AdminPage: React.FC = () => {
         (r.reported_user_id && x.reported_user_id === r.reported_user_id)
       ).length;
     });
-
     setReports(rows);
   };
 
@@ -128,83 +121,61 @@ const AdminPage: React.FC = () => {
   const handleReportAction = async (reportId: string, action: 'dismiss' | 'action') => {
     const report = reports.find(r => r.id === reportId);
     if (!report) return;
-
     if (action === 'action') {
       if (report.reported_post_id) await supabase.from('posts').update({ is_deleted: true }).eq('id', report.reported_post_id);
       if (report.reported_comment_id) await supabase.from('comments').update({ is_deleted: true }).eq('id', report.reported_comment_id);
     }
-
     await supabase.from('reports').update({ status: action === 'dismiss' ? 'dismissed' : 'actioned' }).eq('id', reportId);
-    
-    // Log action
     if (user) {
       await supabase.from('audit_log').insert({
-        actor_id: user.id,
-        action: action === 'dismiss' ? 'dismiss_report' : 'action_report',
+        actor_id: user.id, action: action === 'dismiss' ? 'dismiss_report' : 'action_report',
         target_user_id: report.reported_user_id,
         target_content_id: report.reported_post_id || report.reported_comment_id || undefined,
         details: { report_id: reportId, reason: report.reason },
       });
     }
-
     toast.success(action === 'dismiss' ? 'Report dismissed' : 'Content removed');
-
-    // Notify reporter
     await supabase.from('notifications').insert({
-      user_id: report.reporter_id,
-      type: 'report_result',
+      user_id: report.reporter_id, type: 'report_result',
       title: action === 'dismiss' ? 'Report dismissed' : 'Report actioned',
       body: action === 'dismiss' ? 'Your report was reviewed and dismissed.' : 'Your report was reviewed and action was taken.',
       reference_id: reportId,
     });
-
     fetchReports();
   };
 
   const handlePunish = async () => {
     if (!banDialog || !user || !banReason.trim()) { toast.error('Ban reason is required'); return; }
     const duration = banDuration === 0 ? null : banDuration;
-    const { data, error } = await supabase.rpc('admin_punish_user', {
-      _admin_id: user.id,
-      _target_user_id: banDialog.userId,
-      _action: punishAction,
-      _duration_minutes: duration,
-      _reason: banReason,
+    const { error } = await supabase.rpc('admin_punish_user', {
+      _admin_id: user.id, _target_user_id: banDialog.userId, _action: punishAction,
+      _duration_minutes: duration, _reason: banReason,
     });
     if (error) { toast.error('Failed: ' + error.message); return; }
     toast.success(`User ${punishAction === 'ban' ? 'banned' : 'jailed'}`);
-    setBanDialog(null);
-    setBanReason('');
-    fetchReports();
+    setBanDialog(null); setBanReason(''); fetchReports();
   };
 
   const handleAppealResponse = async (appealId: string, approved: boolean) => {
     const appeal = appeals.find(a => a.id === appealId);
     if (!appeal || !user) return;
-
     if (approved) {
       await supabase.rpc('admin_punish_user', {
-        _admin_id: user.id,
-        _target_user_id: appeal.user_id,
+        _admin_id: user.id, _target_user_id: appeal.user_id,
         _action: appeal.appeal_type === 'ban' ? 'unban' : 'unjail',
-        _duration_minutes: null,
-        _reason: 'Appeal approved',
+        _duration_minutes: null, _reason: 'Appeal approved',
       });
     }
-
     await supabase.from('appeals').update({
       status: approved ? 'approved' : 'denied',
       admin_response: approved ? 'Your appeal was approved' : 'Your appeal was denied',
       resolved_at: new Date().toISOString(),
     }).eq('id', appealId);
-
     await supabase.from('notifications').insert({
-      user_id: appeal.user_id,
-      type: 'appeal_result',
+      user_id: appeal.user_id, type: 'appeal_result',
       title: approved ? 'Appeal Approved' : 'Appeal Denied',
       body: approved ? 'Your punishment has been lifted.' : 'Your appeal was reviewed and denied.',
     });
-
     toast.success(approved ? 'Appeal approved, punishment lifted' : 'Appeal denied');
     fetchAppeals();
   };
@@ -215,8 +186,7 @@ const AdminPage: React.FC = () => {
     ).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'audit_log.csv'; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = 'audit_log.csv'; a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -244,7 +214,6 @@ const AdminPage: React.FC = () => {
         ))}
       </div>
 
-      {/* Reports tab */}
       {tab === 'reports' && (
         <div>
           <div className="flex gap-2 p-3 border-b border-border">
@@ -258,21 +227,18 @@ const AdminPage: React.FC = () => {
               <div key={r.id} className="p-4 space-y-2">
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="text-sm font-medium">
-                      {r.reported_post_id ? '📝 Post report' : r.reported_comment_id ? '💬 Comment report' : '👤 User report'}
+                    <p className="text-sm font-medium flex items-center gap-1">
+                      {r.reported_post_id ? <><FileText className="w-3 h-3" /> Post report</> : r.reported_comment_id ? <><FileText className="w-3 h-3" /> Comment report</> : <><Users className="w-3 h-3" /> User report</>}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Reported by: <span className="text-foreground">{r.reporter_name}</span> · {formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}
                     </p>
                     {r.reported_name && <p className="text-xs text-muted-foreground">Against: <span className="text-foreground">{r.reported_name}</span></p>}
-                    {(r.report_count ?? 0) > 1 && <p className="text-xs text-destructive font-medium">⚠️ {r.report_count} reports on this content</p>}
+                    {(r.report_count ?? 0) > 1 && <p className="text-xs text-destructive font-medium">{r.report_count} reports on this content</p>}
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${
-                    r.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' : r.status === 'actioned' ? 'bg-red-500/20 text-red-400' : 'bg-muted text-muted-foreground'
-                  }`}>{r.status}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${r.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' : r.status === 'actioned' ? 'bg-red-500/20 text-red-400' : 'bg-muted text-muted-foreground'}`}>{r.status}</span>
                 </div>
                 <p className="text-sm bg-card p-3 rounded-lg border border-border">{r.reason}</p>
-                
                 {r.status === 'pending' && (
                   <div className="flex flex-wrap gap-2">
                     <Button size="sm" variant="destructive" onClick={() => handleReportAction(r.id, 'action')}>
@@ -294,7 +260,6 @@ const AdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* Appeals tab */}
       {tab === 'appeals' && (
         <div className="divide-y divide-border">
           {appeals.length === 0 ? (
@@ -320,7 +285,6 @@ const AdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* Audit log tab */}
       {tab === 'audit' && (
         <div>
           <div className="p-3 border-b border-border flex justify-end">
@@ -346,14 +310,13 @@ const AdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* Ban/Jail dialog */}
       {banDialog && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-card border border-border rounded-lg p-6 w-full max-w-sm space-y-4">
             <h3 className="text-lg font-bold">Punish {banDialog.name}</h3>
             <div className="flex gap-2">
-              <Button size="sm" variant={punishAction === 'ban' ? 'default' : 'ghost'} onClick={() => setPunishAction('ban')}>🚫 Ban</Button>
-              <Button size="sm" variant={punishAction === 'jail' ? 'default' : 'ghost'} onClick={() => setPunishAction('jail')}>⛓️ Jail</Button>
+              <Button size="sm" variant={punishAction === 'ban' ? 'default' : 'ghost'} onClick={() => setPunishAction('ban')}><Ban className="w-3 h-3 mr-1" /> Ban</Button>
+              <Button size="sm" variant={punishAction === 'jail' ? 'default' : 'ghost'} onClick={() => setPunishAction('jail')}><Lock className="w-3 h-3 mr-1" /> Jail</Button>
             </div>
             <select value={banDuration} onChange={e => setBanDuration(Number(e.target.value))} className="w-full bg-background border border-border rounded-lg p-2 text-sm text-foreground">
               {BAN_DURATIONS.map(d => <option key={d.minutes} value={d.minutes}>{d.label}</option>)}

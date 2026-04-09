@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Search as SearchIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { getAvatar } from '@/lib/avatars';
+import AvatarImg from '@/components/AvatarImg';
 
 type Tab = 'posts' | 'users' | 'groups';
 
@@ -29,7 +29,6 @@ const SearchPage: React.FC = () => {
       const { data } = await supabase.from('profiles').select('user_id, anonymous_name, username, avatar_id, points, is_online').or(`anonymous_name.ilike.${q},username.ilike.${q}`).limit(20);
       setResults(data || []);
     } else {
-      // Only search discoverable groups
       const { data } = await supabase.from('conversations').select('id, name, type').in('type', ['public_group']).ilike('name', q).limit(20);
       setResults(data || []);
     }
@@ -77,7 +76,7 @@ const SearchPage: React.FC = () => {
 
         {tab === 'users' && results.map((u: any) => (
           <button key={u.user_id} onClick={() => navigate(`/user/${u.user_id}`)} className="w-full text-left p-4 hover:bg-card/50 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-xl">{getAvatar(u.avatar_id || 1).emoji}</div>
+            <AvatarImg avatarId={u.avatar_id || 1} size="md" />
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-medium">{u.anonymous_name}</p>

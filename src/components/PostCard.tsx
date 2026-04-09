@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import ReportDialog from '@/components/ReportDialog';
 import { QUICK_REACTIONS } from '@/lib/gifts';
-import { getAvatar } from '@/lib/avatars';
+import AvatarImg from '@/components/AvatarImg';
 
 interface PostCardProps {
   post: {
@@ -57,14 +57,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, onRefresh }) => {
   };
 
   const avatarId = post.profiles?.avatar_id || 1;
-  const avatarEmoji = getAvatar(avatarId).emoji;
 
   return (
     <>
       <div className="p-4 animate-fade-in">
         <div className="flex gap-3">
-          <button onClick={openProfile} className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-lg shrink-0">
-            {avatarEmoji}
+          <button onClick={openProfile} className="shrink-0">
+            <AvatarImg avatarId={avatarId} size="md" />
           </button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">

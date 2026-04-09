@@ -7,9 +7,10 @@ import GiftDialog from '@/components/GiftDialog';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { PROFILE_GIFT_FIELDS } from '@/lib/gifts';
-import { getAvatar } from '@/lib/avatars';
 import { getUserBadges, FOUNDER_EMAIL } from '@/lib/badges';
-import { GENDER_OPTIONS } from '@/lib/constants';
+import BadgeIcon from '@/components/BadgeIcon';
+import AvatarImg from '@/components/AvatarImg';
+import { User, UserRound } from 'lucide-react';
 
 interface UserProfile {
   user_id: string;
@@ -41,11 +42,15 @@ const UserProfilePage: React.FC = () => {
   const [showGift, setShowGift] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [equippedItems, setEquippedItems] = useState<any[]>([]);
 
   useEffect(() => {
     if (!userId) return;
     supabase.from('profiles').select('*').eq('user_id', userId).single().then(({ data }) => {
       if (data) setProfile(data as any);
+    });
+    supabase.from('user_items').select('*, shop_items(*)').eq('user_id', userId).eq('is_equipped', true).then(({ data }) => {
+      setEquippedItems(data || []);
     });
   }, [userId]);
 
@@ -78,9 +83,8 @@ const UserProfilePage: React.FC = () => {
     toast.success(isBlocked ? 'User unblocked' : 'User blocked');
   };
 
-  const avatar = getAvatar(profile.avatar_id || 1);
-  const badges = getUserBadges(profile, false); // Can't tell if founder from here
-  const genderInfo = GENDER_OPTIONS.find(g => g.value === (profile.gender || 'unspecified'));
+  const badges = getUserBadges(profile, false);
+  const GenderIcon = profile.gender === 'male' ? User : profile.gender === 'female' ? UserRound : null;
 
   return (
     <div className="max-w-lg mx-auto pb-20">
@@ -92,13 +96,26 @@ const UserProfilePage: React.FC = () => {
 
       <div className="p-6 space-y-6">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center text-4xl">{avatar.emoji}</div>
+          <AvatarImg avatarId={profile.avatar_id || 1} size="lg" />
+          {/* Equipped items */}
+          {equippedItems.length > 0 && (
+            <div className="flex gap-2">
+              {equippedItems.map((item: any) => (
+                <div key={item.id} className="flex flex-col items-center">
+                  <img src={item.shop_items?.icon_url} alt={item.shop_items?.name} className="w-8 h-8" />
+                  <span className="text-[9px] text-muted-foreground">{item.shop_items?.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="text-center">
             <h2 className="text-xl font-bold">{profile.anonymous_name}</h2>
             <p className="text-xs text-muted-foreground">@{profile.username}</p>
             <div className="flex items-center justify-center gap-1 mt-1 flex-wrap">
               {badges.map(b => (
-                <span key={b.key} className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${b.color}`}>{b.emoji} {b.label}</span>
+                <span key={b.key} className={`rounded-full border px-2 py-0.5 text-[10px] font-medium inline-flex items-center gap-1 ${b.color}`}>
+                  <BadgeIcon name={b.iconName} /> {b.label}
+                </span>
               ))}
             </div>
           </div>
@@ -113,9 +130,9 @@ const UserProfilePage: React.FC = () => {
             <p className="text-xs text-muted-foreground">Age</p>
             <p className="text-lg font-bold">{profile.age || '—'}</p>
           </div>
-          <div className="bg-card rounded-lg p-3 text-center border border-border">
+          <div className="bg-card rounded-lg p-3 text-center border border-border flex flex-col items-center justify-center">
             <p className="text-xs text-muted-foreground">Gender</p>
-            <p className="text-lg">{genderInfo?.icon || '🤫'}</p>
+            {GenderIcon ? <GenderIcon className="w-5 h-5" /> : <span className="text-sm">—</span>}
           </div>
         </div>
 
