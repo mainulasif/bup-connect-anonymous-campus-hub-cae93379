@@ -98,6 +98,30 @@ export type Database = {
         }
         Relationships: []
       }
+      bubble_colors: {
+        Row: {
+          created_at: string
+          css_class: string
+          id: string
+          name: string
+          price: number
+        }
+        Insert: {
+          created_at?: string
+          css_class: string
+          id?: string
+          name: string
+          price?: number
+        }
+        Update: {
+          created_at?: string
+          css_class?: string
+          id?: string
+          name?: string
+          price?: number
+        }
+        Relationships: []
+      }
       comments: {
         Row: {
           content: string
@@ -471,6 +495,7 @@ export type Database = {
           ban_expires_at: string | null
           ban_reason: string | null
           bio: string | null
+          bubble_color: string | null
           created_at: string
           gender: string | null
           gift_black_orchid: number
@@ -499,6 +524,7 @@ export type Database = {
           ban_expires_at?: string | null
           ban_reason?: string | null
           bio?: string | null
+          bubble_color?: string | null
           created_at?: string
           gender?: string | null
           gift_black_orchid?: number
@@ -527,6 +553,7 @@ export type Database = {
           ban_expires_at?: string | null
           ban_reason?: string | null
           bio?: string | null
+          bubble_color?: string | null
           created_at?: string
           gender?: string | null
           gift_black_orchid?: number
@@ -795,6 +822,7 @@ export type Database = {
       }
       is_user_admin: { Args: { _user_id: string }; Returns: boolean }
       is_user_banned: { Args: { _user_id: string }; Returns: boolean }
+      purchase_bubble_color: { Args: { p_color_id: string }; Returns: Json }
       purchase_item: { Args: { p_item_id: string }; Returns: Json }
       send_gift: {
         Args: {
