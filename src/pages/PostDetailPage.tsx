@@ -144,7 +144,10 @@ const PostDetailPage: React.FC = () => {
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    await supabase.from('comments').update({ is_deleted: true }).eq('id', commentId);
+    const { data, error } = await supabase.rpc('soft_delete_comment', { _comment_id: commentId });
+    if (error) { toast.error('Failed to delete comment'); }
+    const result = data as any;
+    if (result && !result.success) { toast.error(result.error || 'Failed'); }
     fetchComments();
   };
 

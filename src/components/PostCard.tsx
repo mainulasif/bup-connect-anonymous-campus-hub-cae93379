@@ -44,8 +44,10 @@ const PostCard: React.FC<PostCardProps> = ({ post, onRefresh }) => {
 
   const handleDelete = async () => {
     if (!user) return;
-    const { error } = await supabase.from('posts').update({ is_deleted: true }).eq('id', post.id);
+    const { data, error } = await supabase.rpc('soft_delete_post', { _post_id: post.id });
     if (error) { toast.error('Failed to delete post: ' + error.message); return; }
+    const result = data as any;
+    if (result && !result.success) { toast.error(result.error || 'Failed to delete post'); return; }
     toast.success('Post deleted');
     onRefresh();
   };

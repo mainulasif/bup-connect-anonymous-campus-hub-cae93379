@@ -1006,6 +1006,7 @@ export type Database = {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
       }
+      is_profile_admin: { Args: { _user_id: string }; Returns: boolean }
       is_user_admin: { Args: { _user_id: string }; Returns: boolean }
       is_user_banned: { Args: { _user_id: string }; Returns: boolean }
       purchase_bubble_color: { Args: { p_color_id: string }; Returns: Json }
@@ -1019,6 +1020,8 @@ export type Database = {
         }
         Returns: Json
       }
+      soft_delete_comment: { Args: { _comment_id: string }; Returns: Json }
+      soft_delete_post: { Args: { _post_id: string }; Returns: Json }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

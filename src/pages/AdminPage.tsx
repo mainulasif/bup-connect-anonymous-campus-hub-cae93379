@@ -121,8 +121,8 @@ const AdminPage: React.FC = () => {
     const report = reports.find(r => r.id === reportId);
     if (!report) return;
     if (action === 'action') {
-      if (report.reported_post_id) await supabase.from('posts').update({ is_deleted: true }).eq('id', report.reported_post_id);
-      if (report.reported_comment_id) await supabase.from('comments').update({ is_deleted: true }).eq('id', report.reported_comment_id);
+      if (report.reported_post_id) await supabase.rpc('soft_delete_post', { _post_id: report.reported_post_id });
+      if (report.reported_comment_id) await supabase.rpc('soft_delete_comment', { _comment_id: report.reported_comment_id });
     }
     await supabase.from('reports').update({ status: action === 'dismiss' ? 'dismissed' : 'actioned' }).eq('id', reportId);
     if (user) {
