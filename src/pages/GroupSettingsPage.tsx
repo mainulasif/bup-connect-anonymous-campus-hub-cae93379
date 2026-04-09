@@ -134,6 +134,12 @@ const GroupSettingsPage: React.FC = () => {
     return null;
   };
 
+  const getRoleLabel = (role: string) => {
+    if (role === 'creator') return { label: 'Creator', className: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' };
+    if (role === 'moderator') return { label: 'Chat Mod', className: 'bg-pink-500/20 text-pink-400 border-pink-500/30' };
+    return null;
+  };
+
   return (
     <div className="max-w-lg mx-auto pb-20">
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b border-border px-4 py-3 flex items-center gap-3">
@@ -205,47 +211,59 @@ const GroupSettingsPage: React.FC = () => {
         <div className="bg-card rounded-xl border border-border p-4 space-y-2">
           <h3 className="text-sm font-semibold">Members ({members.length})</h3>
           <div className="space-y-1">
-            {members.map(m => (
-              <div key={m.user_id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
-                <AvatarImg avatarId={m.avatar_id} size="sm" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1">
-                    <span className="text-sm font-medium truncate">{m.anonymous_name}</span>
-                    <span className={`w-1.5 h-1.5 rounded-full ${m.is_online ? 'bg-green-500' : 'bg-muted-foreground'}`}></span>
-                    {m.role !== 'member' && <span className="text-[10px] text-primary">({m.role})</span>}
+            {members.map(m => {
+              const roleInfo = getRoleLabel(m.role);
+              return (
+                <div key={m.user_id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
+                  <AvatarImg avatarId={m.avatar_id} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-medium truncate">{m.anonymous_name}</span>
+                      <span className={`w-1.5 h-1.5 rounded-full ${m.is_online ? 'bg-green-500' : 'bg-muted-foreground'}`}></span>
+                      {roleInfo && (
+                        <span className={`text-[9px] font-semibold rounded-full border px-1.5 py-0.5 ${roleInfo.className}`}>
+                          {roleInfo.label}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <span>@{m.username}</span>
+                      <span>·</span>
+                      <span>{m.age || '?'}y</span>
+                      <GenderIconSmall value={m.gender} />
+                      <span>·</span>
+                      <span>{m.points.toLocaleString()} pts</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                    <span>@{m.username}</span>
-                    <span>·</span>
-                    <span>{m.age || '?'}y</span>
-                    <GenderIconSmall value={m.gender} />
-                    <span>·</span>
-                    <span>{m.points.toLocaleString()} pts</span>
+                  <div className="flex gap-1">
+                    {m.user_id !== user?.id && (
+                      <button onClick={() => {
+                        supabase.rpc('create_direct_conversation', { other_user_id: m.user_id }).then(({ data }) => {
+                          if (data) navigate(`/chat/${data}`);
+                        });
+                      }} className="p-1 text-muted-foreground hover:text-primary"><MessageCircle className="w-3.5 h-3.5" /></button>
+                    )}
+                    {canPromoteDemote && m.user_id !== user?.id && m.role !== 'creator' && (
+                      <>
+                        {m.role === 'member' && (
+                          <button onClick={() => handlePromote(m.user_id, 'moderator')} className="p-1 text-muted-foreground hover:text-primary" title="Promote to Chat Mod">
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {m.role === 'moderator' && (
+                          <button onClick={() => handlePromote(m.user_id, 'member')} className="p-1 text-muted-foreground hover:text-orange-400" title="Demote from Chat Mod">
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </>
+                    )}
+                    {canModerate && m.user_id !== user?.id && m.role !== 'creator' && (
+                      <button onClick={() => handleKick(m.user_id)} className="p-1 text-muted-foreground hover:text-destructive"><UserMinus className="w-3.5 h-3.5" /></button>
+                    )}
                   </div>
                 </div>
-                <div className="flex gap-1">
-                  {m.user_id !== user?.id && (
-                    <button onClick={() => {
-                      supabase.rpc('create_direct_conversation', { other_user_id: m.user_id }).then(({ data }) => {
-                        if (data) navigate(`/chat/${data}`);
-                      });
-                    }} className="p-1 text-muted-foreground hover:text-primary"><MessageCircle className="w-3.5 h-3.5" /></button>
-                  )}
-                  {canPromoteDemote && m.user_id !== user?.id && m.role !== 'creator' && (
-                    <>
-                      {m.role === 'member' ? (
-                        <button onClick={() => handlePromote(m.user_id, 'moderator')} className="p-1 text-muted-foreground hover:text-primary"><ChevronUp className="w-3.5 h-3.5" /></button>
-                      ) : m.role === 'moderator' ? (
-                        <button onClick={() => handlePromote(m.user_id, 'member')} className="p-1 text-muted-foreground hover:text-primary"><ChevronDown className="w-3.5 h-3.5" /></button>
-                      ) : null}
-                    </>
-                  )}
-                  {canModerate && m.user_id !== user?.id && m.role !== 'creator' && (
-                    <button onClick={() => handleKick(m.user_id)} className="p-1 text-muted-foreground hover:text-destructive"><UserMinus className="w-3.5 h-3.5" /></button>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

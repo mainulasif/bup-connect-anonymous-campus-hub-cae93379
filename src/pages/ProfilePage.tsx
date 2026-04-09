@@ -11,13 +11,11 @@ import { PROFILE_GIFT_FIELDS } from '@/lib/gifts';
 import { AVATARS, getAvatar } from '@/lib/avatars';
 import { getUserBadges } from '@/lib/badges';
 import BadgeIcon from '@/components/BadgeIcon';
+import AvatarWithAccessories from '@/components/AvatarWithAccessories';
 import AvatarImg from '@/components/AvatarImg';
 import { GENDER_OPTIONS } from '@/lib/constants';
 
-interface BlockedUser {
-  blocked_id: string;
-  anonymous_name: string;
-}
+interface BlockedUser { blocked_id: string; anonymous_name: string; }
 
 const GenderIcon: React.FC<{ value: string }> = ({ value }) => {
   if (value === 'male') return <User className="w-4 h-4" />;
@@ -39,6 +37,7 @@ const ProfilePage: React.FC = () => {
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [userItems, setUserItems] = useState<any[]>([]);
+  const [equippedItems, setEquippedItems] = useState<any[]>([]);
 
   useEffect(() => {
     if (profile) {
@@ -65,10 +64,13 @@ const ProfilePage: React.FC = () => {
     if (!user) return;
     const { data } = await supabase.from('user_items').select('*, shop_items(*)').eq('user_id', user.id);
     setUserItems(data || []);
+    setEquippedItems((data || []).filter((i: any) => i.is_equipped).map((i: any) => ({
+      category: i.shop_items?.category, icon_url: i.shop_items?.icon_url, name: i.shop_items?.name,
+    })));
   };
 
   useEffect(() => { fetchBlockedUsers(); fetchUserItems(); }, [user]);
-  
+
   useEffect(() => {
     if (!user) return;
     supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_read', false).then(({ count }) => setUnreadNotifs(count || 0));
@@ -79,16 +81,10 @@ const ProfilePage: React.FC = () => {
     const trimmedUsername = username.trim();
     if (trimmedUsername.length < 3) { toast.error('Username must be at least 3 characters'); return; }
     if (!/^[a-zA-Z0-9_]+$/.test(trimmedUsername)) { toast.error('Username can only contain letters, numbers, underscores'); return; }
-
     const { error } = await supabase.from('profiles').update({
-      anonymous_name: name.trim() || 'Anonymous',
-      username: trimmedUsername,
-      bio: bio.trim(),
-      age: age ? parseInt(age) : null,
-      gender,
-      avatar_id: avatarId,
+      anonymous_name: name.trim() || 'Anonymous', username: trimmedUsername,
+      bio: bio.trim(), age: age ? parseInt(age) : null, gender, avatar_id: avatarId,
     }).eq('user_id', user.id);
-    
     if (error) {
       if (error.message.includes('profiles_username_unique')) toast.error('Username already taken');
       else toast.error('Failed to save');
@@ -110,7 +106,6 @@ const ProfilePage: React.FC = () => {
   const handleEquipToggle = async (itemId: string, category: string, currentlyEquipped: boolean) => {
     if (!user) return;
     if (!currentlyEquipped) {
-      // Unequip any other item in same category
       const sameCategory = userItems.filter(i => i.shop_items?.category === category && i.is_equipped);
       for (const item of sameCategory) {
         await supabase.from('user_items').update({ is_equipped: false }).eq('id', item.id);
@@ -140,10 +135,9 @@ const ProfilePage: React.FC = () => {
       </header>
 
       <div className="p-6 space-y-6">
-        {/* Avatar */}
         <div className="flex flex-col items-center gap-3">
           <button onClick={() => editing && setShowAvatarPicker(!showAvatarPicker)}>
-            <AvatarImg avatarId={avatarId} size="lg" />
+            <AvatarWithAccessories avatarId={avatarId} equippedItems={equippedItems} size="lg" />
           </button>
           {showAvatarPicker && editing && (
             <div className="grid grid-cols-5 gap-2 p-3 bg-card rounded-lg border border-border max-w-[280px]">
@@ -158,7 +152,7 @@ const ProfilePage: React.FC = () => {
           {editing ? (
             <div className="space-y-2 w-full max-w-[250px]">
               <Input value={name} onChange={e => setName(e.target.value)} placeholder="Display name" className="bg-card border-border text-center" maxLength={30} />
-              <Input value={username} onChange={e => setUsername(e.target.value)} placeholder="Username (e.g. ShadowTiger_4821)" className="bg-card border-border text-center text-xs" maxLength={30} />
+              <Input value={username} onChange={e => setUsername(e.target.value)} placeholder="Username" className="bg-card border-border text-center text-xs" maxLength={30} />
             </div>
           ) : (
             <div className="text-center">
@@ -175,7 +169,6 @@ const ProfilePage: React.FC = () => {
           )}
         </div>
 
-        {/* Status & info */}
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-card rounded-lg p-3 text-center border border-border">
             <p className="text-xs text-muted-foreground">Points</p>
@@ -196,13 +189,11 @@ const ProfilePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Status indicator */}
         <div className="flex items-center justify-center gap-2">
           <span className={`w-2 h-2 rounded-full ${profile.is_online ? 'bg-green-500' : 'bg-muted-foreground'}`}></span>
           <span className="text-xs text-muted-foreground">{profile.is_online ? 'Online' : 'Offline'}</span>
         </div>
 
-        {/* Gifts */}
         <div className="grid grid-cols-4 gap-2">
           {PROFILE_GIFT_FIELDS.map(gift => (
             <div key={gift.name} className="bg-card rounded-lg p-3 text-center border border-border">
@@ -213,7 +204,6 @@ const ProfilePage: React.FC = () => {
           ))}
         </div>
 
-        {/* My Items */}
         {userItems.length > 0 && (
           <section className="space-y-3">
             <h3 className="text-sm font-semibold">My Items</h3>
@@ -230,7 +220,6 @@ const ProfilePage: React.FC = () => {
           </section>
         )}
 
-        {/* Bio */}
         {editing ? (
           <Textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="Write something about yourself..." className="bg-card border-border" maxLength={200} />
         ) : (
@@ -254,7 +243,6 @@ const ProfilePage: React.FC = () => {
           )}
         </div>
 
-        {/* Blocked users */}
         <section className="space-y-3">
           <h3 className="text-sm font-semibold">Blocked users</h3>
           <div className="space-y-2">
@@ -269,7 +257,6 @@ const ProfilePage: React.FC = () => {
           </div>
         </section>
 
-        {/* Ban / Jail status */}
         {(profile.is_banned || profile.is_jailed) && (
           <div className="rounded-lg border border-destructive bg-destructive/10 p-4 space-y-2">
             {profile.is_banned && (
