@@ -113,11 +113,26 @@ const AdminPage: React.FC = () => {
     setSearchLoading(false);
   };
 
+  const fetchBannedUsers = async () => {
+    const { data } = await supabase.from('profiles')
+      .select('user_id, anonymous_name, username, avatar_id, points, is_banned, is_jailed, is_admin')
+      .eq('is_banned', true).limit(50);
+    setBannedUsers((data || []) as UserResult[]);
+  };
+
+  const fetchJailedUsers = async () => {
+    const { data } = await supabase.from('profiles')
+      .select('user_id, anonymous_name, username, avatar_id, points, is_banned, is_jailed, is_admin')
+      .eq('is_jailed', true).limit(50);
+    setJailedUsers((data || []) as UserResult[]);
+  };
+
   useEffect(() => {
     if (!isAdmin && !isFounder) { navigate('/'); return; }
     if (tab === 'reports') fetchReports();
     if (tab === 'audit') fetchAuditLog();
     if (tab === 'appeals') fetchAppeals();
+    if (tab === 'users') { fetchBannedUsers(); fetchJailedUsers(); }
   }, [isAdmin, isFounder, tab, reportFilter]);
 
   const handleReportAction = async (reportId: string, action: 'dismiss' | 'action') => {
