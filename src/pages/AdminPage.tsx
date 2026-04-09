@@ -159,7 +159,19 @@ const AdminPage: React.FC = () => {
     if (tab === 'users') handleSearchUsers();
   };
 
-  const handleAppealResponse = async (appealId: string, approved: boolean) => {
+  const handleUnpunish = async (targetUserId: string, action: 'unban' | 'unjail') => {
+    if (!user) return;
+    const { data, error } = await supabase.rpc('admin_punish_user', {
+      _admin_id: user.id, _target_user_id: targetUserId, _action: action,
+      _duration_minutes: null, _reason: action === 'unban' ? 'Unbanned by admin' : 'Released from jail',
+    });
+    if (error) { toast.error('Failed: ' + error.message); return; }
+    const result = data as any;
+    if (result && !result.success) { toast.error(result.error || 'Failed'); return; }
+    toast.success(action === 'unban' ? 'User unbanned' : 'User released from jail');
+    handleSearchUsers();
+  };
+
     const appeal = appeals.find(a => a.id === appealId);
     if (!appeal || !user) return;
     if (approved) {
