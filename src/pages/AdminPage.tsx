@@ -313,9 +313,24 @@ const AdminPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex gap-1 flex-wrap">
-                  <Button size="sm" variant="destructive" onClick={() => setBanDialog({ userId: u.user_id, name: u.anonymous_name })}>
-                    <Ban className="w-3 h-3 mr-1" /> Punish
-                  </Button>
+                  {u.is_banned ? (
+                    <Button size="sm" variant="outline" onClick={() => handleUnpunish(u.user_id, 'unban')}>
+                      <Ban className="w-3 h-3 mr-1" /> Unban
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="destructive" onClick={() => { setPunishAction('ban'); setBanDialog({ userId: u.user_id, name: u.anonymous_name }); }}>
+                      <Ban className="w-3 h-3 mr-1" /> Ban
+                    </Button>
+                  )}
+                  {u.is_jailed ? (
+                    <Button size="sm" variant="outline" onClick={() => handleUnpunish(u.user_id, 'unjail')}>
+                      <Lock className="w-3 h-3 mr-1" /> Unjail
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="destructive" onClick={() => { setPunishAction('jail'); setBanDialog({ userId: u.user_id, name: u.anonymous_name }); }}>
+                      <Lock className="w-3 h-3 mr-1" /> Jail
+                    </Button>
+                  )}
                   {isFounder && !u.is_admin && (
                     <Button size="sm" variant="outline" onClick={() => handlePromoteAdmin(u.user_id)}>
                       <ShieldCheck className="w-3 h-3 mr-1" /> Make Admin
