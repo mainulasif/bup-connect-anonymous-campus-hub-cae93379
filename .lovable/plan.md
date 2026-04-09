@@ -1,77 +1,50 @@
 
 
-## Plan: 10 Fixes — Avatars, Moderation, Accessories, Points, Gifts, Chat Bubbles
+## Plan: Regenerate All 20 Sticker Packs Using AI Image Generation
 
-### Fix 1: Cooler Avatars
-The current SVGs are simple flat circles. Replace all 20 SVG files in `public/avatars/` with more detailed, character-style illustrations — larger bodies, expressive eyes, distinctive features (wings, claws, horns, armor). Inspired by the Antiland dragon/owl style but as flat-design SVGs with more detail and personality.
+### Problem
+The current sticker SVGs are simple geometric shapes (circles, lines, polygons) that look nothing like the actual avatar characters (detailed chibi-style PNG illustrations). The user wants stickers that are visually derived from the same characters shown in the avatar grid.
 
-**Files**: Replace all 20 `public/avatars/*.svg` files
+### Approach
+Use the AI image generation model (`google/gemini-3.1-flash-image-preview`) to generate ~15 sticker images per avatar, using the actual avatar PNG as a reference. Each sticker will be a PNG showing the same character in a different expression/pose.
 
-### Fix 2: Demote Option Missing
-The demote button logic at `GroupSettingsPage.tsx:234-241` already exists and works correctly — it shows ChevronDown for moderators when `canPromoteDemote` is true. The issue is likely that the current user's role isn't being detected as `creator`. Will add debug logging and ensure the `canPromoteDemote` check includes proper fallback for founder email check.
+### Step-by-step
 
-**Files**: `src/pages/GroupSettingsPage.tsx`
+**Step 1 — Generate sticker images for all 20 avatars**
+- For each of the 20 avatars (dragon, dinosaur, phoenix, robot, ghost, wolf, alien, ninja, samurai, kraken, yeti, cyborg, griffin, golem, serpent, sphinx, wraith, mantis, scorpion, chimera):
+  - Read the avatar PNG from `public/avatars/{name}.png`
+  - Use the AI image editing model with the avatar as input, prompting for each of 15 expressions: Hello, Bye, Laugh, Happy, Love, Angry, Sad, Crying, Care, Pleading, Chill, Bored, Good Morning, Good Night, Shocked
+  - Save each generated sticker as `public/stickers/{name}-{expression}.png`
+- Total: ~300 PNG sticker images
 
-### Fix 3: Show "Chat Mod" Label in Member List
-Currently roles show as `(moderator)` in parentheses (line 215). Change to show a styled colored label like "Chat Mod" next to the name, matching the Antiland screenshot style — magenta/pink color, right-aligned.
+**Step 2 — Replace old SVG stickers**
+- Delete or replace the existing geometric SVG stickers in `public/stickers/`
+- The new PNGs will use the same naming convention the database already references
 
-**Files**: `src/pages/GroupSettingsPage.tsx`
+**Step 3 — Update database records**
+- Clear existing `sticker_pack_stickers` entries that reference old SVG paths
+- Insert new records pointing to the generated PNG files
+- Update `sticker_packs` icon_url to use each avatar's actual PNG (`/avatars/{name}.png`) as the pack icon
+- Keep existing pack ownership (`user_sticker_packs`) intact
 
-### Fix 4 & 5: Ban/Jail with Timed Durations from Admin Panel
-The `admin_punish_user` RPC and `BAN_DURATIONS` constants exist, but the ban dialog only appears from reports. Add a **Users** tab to the Admin Panel where admins can search any user and directly ban/jail them with duration selection. The existing ban dialog already supports duration + reason + ban/jail toggle.
+**Step 4 — Verify rendering**
+- Confirm `StickerPicker.tsx` and `ShopPage.tsx` already handle image paths (they do — `isImageSticker` checks for `/`, `.svg`, `.png`)
+- No component code changes should be needed
 
-**Files**: `src/pages/AdminPage.tsx` — add "Users" tab with user search + punish action
+**Step 5 — QA each pack**
+- Visually inspect a sample of generated stickers to confirm they match the avatar character
+- Re-generate any that don't match
 
-### Fix 6: Cooler Accessory SVGs
-Replace all 18 SVG files in `public/accessories/` with more detailed, stylized designs — thicker lines, gradients, more visual appeal similar to Reddit-style avatar accessories.
+### Technical details
+- Model: `google/gemini-3.1-flash-image-preview` (fast + high quality image gen/edit)
+- Input: each avatar PNG + expression prompt
+- Output: ~300 PNG files in `public/stickers/`
+- DB migration: update `sticker_packs.icon_url` + replace `sticker_pack_stickers.emoji` paths
+- Files changed: `public/stickers/*.png` (new), old `public/stickers/*.svg` (removed)
+- Tables changed: `sticker_packs`, `sticker_pack_stickers`
 
-**Files**: Replace all 18 `public/accessories/*.svg` files
-
-### Fix 7: Equipped Items Show on Avatar
-The `AvatarWithAccessories` component already exists but isn't used everywhere. Update `ProfilePage.tsx`, `UserProfilePage.tsx`, `PostCard.tsx`, `ChatPage.tsx`, `GroupSettingsPage.tsx`, and `InboxPage.tsx` to:
-1. Fetch user's equipped items
-2. Render `<AvatarWithAccessories>` instead of `<AvatarImg>` showing head/face/hand overlays positioned on the avatar
-
-**Files**: All components rendering avatars, plus `AvatarWithAccessories.tsx` positioning refinements
-
-### Fix 8: Points Not Increasing on Messages
-There's a trigger `award_comment_point` on comments but **no trigger on messages**. Need a new database trigger on `messages` INSERT that increments the sender's points by 1.
-
-**Database migration**: Create `award_message_point()` trigger function + trigger on `messages` table
-
-### Fix 9: Gift Announcement in Chat
-When a gift is sent, insert a system message into the active conversation (group or DM) like "🎁 X sent Y a Diamond!" Update `GiftDialog.tsx` to accept an optional `conversationId` prop. After successful gift send, insert a message into that conversation. Update `UserProfilePage.tsx` and `ChatPage.tsx` to pass the conversation context.
-
-**Files**: `src/components/GiftDialog.tsx`, `src/pages/ChatPage.tsx` (add gift button in chat header for group chats)
-
-### Fix 10: Chat Bubble Colors
-Add a new table `bubble_colors` with color options and prices (500–10,000 pts). Add `bubble_color` column to `profiles`. In Shop, add a "Chat Bubbles" section where users buy colors. In `ChatPage.tsx`, fetch sender's bubble color and apply it to their message background.
-
-**Database migration**: 
-- New `bubble_colors` table (id, name, css_class, price)
-- Add `bubble_color` column to profiles (nullable text, stores CSS class)
-- New RPC `purchase_bubble_color`
-- Seed ~8 colors: Default (free), Ocean Blue (500), Sunset Orange (1000), Neon Green (1500), Royal Purple (3000), Rose Gold (5000), Diamond (8000), Aurora (10000)
-
-**Files**: `src/pages/ShopPage.tsx`, `src/pages/ChatPage.tsx`, `src/pages/ProfilePage.tsx`
-
----
-
-### Files Summary
-
-| File | Action |
-|------|--------|
-| `public/avatars/*.svg` (20) | Redesign with more detail |
-| `public/accessories/*.svg` (18) | Redesign with more detail |
-| `src/pages/GroupSettingsPage.tsx` | Fix demote visibility, add "Chat Mod" label |
-| `src/pages/AdminPage.tsx` | Add Users tab with search + ban/jail |
-| `src/components/AvatarWithAccessories.tsx` | Refine overlay positioning |
-| `src/pages/ProfilePage.tsx` | Use AvatarWithAccessories, add bubble color |
-| `src/pages/UserProfilePage.tsx` | Use AvatarWithAccessories |
-| `src/components/PostCard.tsx` | Use AvatarWithAccessories |
-| `src/pages/ChatPage.tsx` | Use AvatarWithAccessories, apply bubble colors, add gift button |
-| `src/pages/InboxPage.tsx` | Use AvatarWithAccessories |
-| `src/components/GiftDialog.tsx` | Add conversationId prop for chat announcements |
-| `src/pages/ShopPage.tsx` | Add Chat Bubbles section |
-| Migration SQL | Message points trigger, bubble_colors table, profiles.bubble_color column |
+### Risks
+- AI image generation has rate limits; generating 300 images will take time and may need batching with delays
+- Some generated stickers may not perfectly match the avatar — those will be re-generated
+- The process may take multiple iterations for quality assurance
 
