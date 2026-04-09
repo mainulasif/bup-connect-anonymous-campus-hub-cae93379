@@ -13,6 +13,9 @@ import ProfilePage from "@/pages/ProfilePage";
 import UserProfilePage from "@/pages/UserProfilePage";
 import ShopPage from "@/pages/ShopPage";
 import AdminPage from "@/pages/AdminPage";
+import SearchPage from "@/pages/SearchPage";
+import NotificationsPage from "@/pages/NotificationsPage";
+import AppealPage from "@/pages/AppealPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -49,6 +52,9 @@ const App = () => (
             <Route path="/chat/:id" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
             <Route path="/user/:userId" element={<ProtectedRoute><UserProfilePage /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+            <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+            <Route path="/appeal" element={<ProtectedRoute><AppealPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

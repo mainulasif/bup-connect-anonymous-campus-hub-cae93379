@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      appeals: {
+        Row: {
+          admin_response: string | null
+          appeal_type: string
+          created_at: string | null
+          id: string
+          reason: string
+          resolved_at: string | null
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          admin_response?: string | null
+          appeal_type: string
+          created_at?: string | null
+          id?: string
+          reason: string
+          resolved_at?: string | null
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          admin_response?: string | null
+          appeal_type?: string
+          created_at?: string | null
+          id?: string
+          reason?: string
+          resolved_at?: string | null
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      audit_log: {
+        Row: {
+          action: string
+          actor_id: string
+          created_at: string | null
+          details: Json | null
+          id: string
+          target_content_id: string | null
+          target_user_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          target_content_id?: string | null
+          target_user_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          target_content_id?: string | null
+          target_user_id?: string | null
+        }
+        Relationships: []
+      }
       blocks: {
         Row: {
           blocked_id: string
@@ -87,25 +150,31 @@ export type Database = {
         Row: {
           conversation_id: string
           id: string
+          is_muted: boolean | null
           is_pinned: boolean
           joined_at: string
           last_read_at: string | null
+          role: string | null
           user_id: string
         }
         Insert: {
           conversation_id: string
           id?: string
+          is_muted?: boolean | null
           is_pinned?: boolean
           joined_at?: string
           last_read_at?: string | null
+          role?: string | null
           user_id: string
         }
         Update: {
           conversation_id?: string
           id?: string
+          is_muted?: boolean | null
           is_pinned?: boolean
           joined_at?: string
           last_read_at?: string | null
+          role?: string | null
           user_id?: string
         }
         Relationships: [
@@ -123,7 +192,9 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          is_discoverable: boolean | null
           name: string | null
+          rules: string | null
           type: Database["public"]["Enums"]["conversation_type"]
           updated_at: string
         }
@@ -131,7 +202,9 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          is_discoverable?: boolean | null
           name?: string | null
+          rules?: string | null
           type?: Database["public"]["Enums"]["conversation_type"]
           updated_at?: string
         }
@@ -139,7 +212,9 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          is_discoverable?: boolean | null
           name?: string | null
+          rules?: string | null
           type?: Database["public"]["Enums"]["conversation_type"]
           updated_at?: string
         }
@@ -204,31 +279,137 @@ export type Database = {
           },
         ]
       }
+      group_invites: {
+        Row: {
+          conversation_id: string
+          created_at: string | null
+          id: string
+          invited_by: string
+          invited_user_id: string
+          status: string | null
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string | null
+          id?: string
+          invited_by: string
+          invited_user_id: string
+          status?: string | null
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string | null
+          id?: string
+          invited_by?: string
+          invited_user_id?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_invites_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           content: string
           conversation_id: string
           created_at: string
+          deleted_by_users: string[] | null
           id: string
+          is_deleted_for_all: boolean | null
           sender_id: string
         }
         Insert: {
           content: string
           conversation_id: string
           created_at?: string
+          deleted_by_users?: string[] | null
           id?: string
+          is_deleted_for_all?: boolean | null
           sender_id: string
         }
         Update: {
           content?: string
           conversation_id?: string
           created_at?: string
+          deleted_by_users?: string[] | null
           id?: string
+          is_deleted_for_all?: boolean | null
           sender_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string | null
+          id: string
+          is_read: boolean | null
+          reference_id: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          reference_id?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          reference_id?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      pinned_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string | null
+          id: string
+          pinned_by: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string | null
+          id?: string
+          pinned_by: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string | null
+          id?: string
+          pinned_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pinned_messages_conversation_id_fkey"
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
@@ -263,12 +444,35 @@ export type Database = {
         }
         Relationships: []
       }
+      profanity_words: {
+        Row: {
+          created_at: string | null
+          id: string
+          word: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          word: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          word?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
+          age: number | null
           anonymous_name: string
+          avatar_id: number | null
           avatar_url: string | null
+          ban_expires_at: string | null
+          ban_reason: string | null
           bio: string | null
           created_at: string
+          gender: string | null
           gift_black_orchid: number
           gift_diamond: number
           gift_heart: number
@@ -276,15 +480,27 @@ export type Database = {
           id: string
           is_admin: boolean
           is_banned: boolean
+          is_jailed: boolean | null
+          is_muted: boolean | null
+          is_online: boolean | null
+          is_premium: boolean | null
+          jail_expires_at: string | null
+          last_active_at: string | null
           points: number
           updated_at: string
           user_id: string
+          username: string
         }
         Insert: {
+          age?: number | null
           anonymous_name?: string
+          avatar_id?: number | null
           avatar_url?: string | null
+          ban_expires_at?: string | null
+          ban_reason?: string | null
           bio?: string | null
           created_at?: string
+          gender?: string | null
           gift_black_orchid?: number
           gift_diamond?: number
           gift_heart?: number
@@ -292,15 +508,27 @@ export type Database = {
           id?: string
           is_admin?: boolean
           is_banned?: boolean
+          is_jailed?: boolean | null
+          is_muted?: boolean | null
+          is_online?: boolean | null
+          is_premium?: boolean | null
+          jail_expires_at?: string | null
+          last_active_at?: string | null
           points?: number
           updated_at?: string
           user_id: string
+          username: string
         }
         Update: {
+          age?: number | null
           anonymous_name?: string
+          avatar_id?: number | null
           avatar_url?: string | null
+          ban_expires_at?: string | null
+          ban_reason?: string | null
           bio?: string | null
           created_at?: string
+          gender?: string | null
           gift_black_orchid?: number
           gift_diamond?: number
           gift_heart?: number
@@ -308,9 +536,16 @@ export type Database = {
           id?: string
           is_admin?: boolean
           is_banned?: boolean
+          is_jailed?: boolean | null
+          is_muted?: boolean | null
+          is_online?: boolean | null
+          is_premium?: boolean | null
+          jail_expires_at?: string | null
+          last_active_at?: string | null
           points?: number
           updated_at?: string
           user_id?: string
+          username?: string
         }
         Relationships: []
       }
@@ -459,6 +694,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_punish_user: {
+        Args: {
+          _action: string
+          _admin_id: string
+          _duration_minutes?: number
+          _reason?: string
+          _target_user_id: string
+        }
+        Returns: Json
+      }
+      check_and_clear_expired_punishments: { Args: never; Returns: undefined }
+      check_profanity: { Args: { _text: string }; Returns: boolean }
+      check_rate_limit: {
+        Args: {
+          _action: string
+          _max_count: number
+          _user_id: string
+          _window_minutes: number
+        }
+        Returns: boolean
+      }
       cleanup_old_messages: { Args: never; Returns: undefined }
       create_direct_conversation: {
         Args: { other_user_id: string }

@@ -7,13 +7,26 @@ import GiftDialog from '@/components/GiftDialog';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { PROFILE_GIFT_FIELDS } from '@/lib/gifts';
+import { getAvatar } from '@/lib/avatars';
+import { getUserBadges, FOUNDER_EMAIL } from '@/lib/badges';
+import { GENDER_OPTIONS } from '@/lib/constants';
 
 interface UserProfile {
   user_id: string;
   anonymous_name: string;
+  username: string;
   bio: string | null;
+  age: number | null;
+  gender: string;
+  avatar_id: number;
   points: number;
   is_admin: boolean;
+  is_banned: boolean;
+  is_jailed: boolean;
+  is_muted: boolean;
+  is_premium: boolean;
+  is_online: boolean;
+  ban_expires_at: string | null;
   gift_black_orchid: number;
   gift_plushie: number;
   gift_heart: number;
@@ -38,81 +51,79 @@ const UserProfilePage: React.FC = () => {
 
   useEffect(() => {
     if (!user || !userId || user.id === userId) return;
-
-    supabase
-      .from('blocks')
-      .select('id')
-      .eq('blocker_id', user.id)
-      .eq('blocked_id', userId)
-      .maybeSingle()
-      .then(({ data }) => setIsBlocked(!!data));
+    supabase.from('blocks').select('id').eq('blocker_id', user.id).eq('blocked_id', userId).maybeSingle().then(({ data }) => setIsBlocked(!!data));
   }, [user, userId]);
 
   if (!profile) return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
 
   const handleMessage = async () => {
     if (!userId) return;
-
     setActionLoading(true);
     const { data, error } = await supabase.rpc('create_direct_conversation', { other_user_id: userId });
     setActionLoading(false);
-
-    if (error || !data) {
-      toast.error('Failed to open direct message');
-      return;
-    }
-
+    if (error || !data) { toast.error('Failed to open DM'); return; }
     navigate(`/chat/${data}`);
   };
 
   const handleBlockToggle = async () => {
     if (!user || !userId) return;
-
     setActionLoading(true);
     const request = isBlocked
       ? supabase.from('blocks').delete().eq('blocker_id', user.id).eq('blocked_id', userId)
       : supabase.from('blocks').insert({ blocker_id: user.id, blocked_id: userId });
-
     const { error } = await request;
     setActionLoading(false);
-
-    if (error) {
-      toast.error(`Failed to ${isBlocked ? 'unblock' : 'block'} user`);
-      return;
-    }
-
+    if (error) { toast.error(`Failed to ${isBlocked ? 'unblock' : 'block'}`); return; }
     setIsBlocked(!isBlocked);
     toast.success(isBlocked ? 'User unblocked' : 'User blocked');
   };
 
+  const avatar = getAvatar(profile.avatar_id || 1);
+  const badges = getUserBadges(profile, false); // Can't tell if founder from here
+  const genderInfo = GENDER_OPTIONS.find(g => g.value === (profile.gender || 'unspecified'));
+
   return (
-    <div className="max-w-lg mx-auto">
+    <div className="max-w-lg mx-auto pb-20">
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b border-border px-4 py-3 flex items-center gap-3">
         <button onClick={() => navigate(-1)}><ArrowLeft className="w-5 h-5" /></button>
-        <h1 className="text-lg font-bold">{profile.anonymous_name}</h1>
+        <h1 className="text-lg font-bold truncate">{profile.anonymous_name}</h1>
+        <span className={`ml-auto w-2 h-2 rounded-full ${profile.is_online ? 'bg-green-500' : 'bg-muted-foreground'}`}></span>
       </header>
 
       <div className="p-6 space-y-6">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center text-2xl font-bold text-secondary-foreground">
-            {profile.anonymous_name.charAt(0).toUpperCase()}
-          </div>
-          <div className="flex items-center gap-2">
+          <div className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center text-4xl">{avatar.emoji}</div>
+          <div className="text-center">
             <h2 className="text-xl font-bold">{profile.anonymous_name}</h2>
-            {profile.is_admin && <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">Admin</span>}
+            <p className="text-xs text-muted-foreground">@{profile.username}</p>
+            <div className="flex items-center justify-center gap-1 mt-1 flex-wrap">
+              {badges.map(b => (
+                <span key={b.key} className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${b.color}`}>{b.emoji} {b.label}</span>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="bg-card rounded-lg p-4 text-center border border-border">
-          <p className="text-xs text-muted-foreground uppercase">Points</p>
-          <p className="text-3xl font-bold text-primary">{profile.points.toLocaleString()}</p>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="bg-card rounded-lg p-3 text-center border border-border">
+            <p className="text-xs text-muted-foreground">Points</p>
+            <p className="text-lg font-bold text-primary">{profile.points.toLocaleString()}</p>
+          </div>
+          <div className="bg-card rounded-lg p-3 text-center border border-border">
+            <p className="text-xs text-muted-foreground">Age</p>
+            <p className="text-lg font-bold">{profile.age || '—'}</p>
+          </div>
+          <div className="bg-card rounded-lg p-3 text-center border border-border">
+            <p className="text-xs text-muted-foreground">Gender</p>
+            <p className="text-lg">{genderInfo?.icon || '🤫'}</p>
+          </div>
         </div>
 
         <div className="grid grid-cols-4 gap-2">
           {PROFILE_GIFT_FIELDS.map(gift => (
             <div key={gift.name} className="bg-card rounded-lg p-3 text-center border border-border">
               <div className="flex justify-center mb-1 text-2xl leading-none">{gift.emoji}</div>
-              <p className="text-lg font-bold">{profile[gift.key].toLocaleString()}</p>
+              <p className="text-lg font-bold">{(profile as any)[gift.key]?.toLocaleString?.() ?? 0}</p>
               <p className="text-[10px] text-muted-foreground">{gift.name}</p>
             </div>
           ))}
@@ -125,15 +136,9 @@ const UserProfilePage: React.FC = () => {
 
         {user?.id !== userId && (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <Button onClick={handleMessage} disabled={actionLoading} className="w-full">
-              Message
-            </Button>
-            <Button onClick={() => setShowGift(true)} variant="secondary" className="w-full">
-              Send Gift
-            </Button>
-            <Button onClick={handleBlockToggle} variant="outline" disabled={actionLoading} className="w-full">
-              {isBlocked ? 'Unblock' : 'Block'}
-            </Button>
+            <Button onClick={handleMessage} disabled={actionLoading} className="w-full">Message</Button>
+            <Button onClick={() => setShowGift(true)} variant="secondary" className="w-full">Send Gift</Button>
+            <Button onClick={handleBlockToggle} variant="outline" disabled={actionLoading} className="w-full">{isBlocked ? 'Unblock' : 'Block'}</Button>
           </div>
         )}
       </div>
