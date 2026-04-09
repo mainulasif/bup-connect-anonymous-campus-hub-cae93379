@@ -314,6 +314,38 @@ export type Database = {
         }
         Relationships: []
       }
+      reactions: {
+        Row: {
+          created_at: string
+          emoji: string
+          id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          emoji?: string
+          id?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reactions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reports: {
         Row: {
           admin_note: string | null
@@ -428,6 +460,10 @@ export type Database = {
     }
     Functions: {
       cleanup_old_messages: { Args: never; Returns: undefined }
+      create_direct_conversation: {
+        Args: { other_user_id: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
