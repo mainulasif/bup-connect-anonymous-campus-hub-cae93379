@@ -25,12 +25,22 @@ const FeedPage: React.FC = () => {
   const fetchPosts = async () => {
     const { data, error } = await supabase
       .from('posts')
-      .select('id, user_id, content, created_at, profiles(anonymous_name, avatar_url)')
+      .select('id, user_id, content, created_at')
       .eq('is_deleted', false)
       .order('created_at', { ascending: false })
       .limit(50);
     
-    if (data) {
+    if (data && data.length > 0) {
+      // Get unique user ids and fetch their profiles
+      const userIds = [...new Set(data.map(p => p.user_id))];
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('user_id, anonymous_name, avatar_url')
+        .in('user_id', userIds);
+      
+      const profileMap: Record<string, { anonymous_name: string; avatar_url: string }> = {};
+      profilesData?.forEach(p => { profileMap[p.user_id] = { anonymous_name: p.anonymous_name, avatar_url: p.avatar_url || '' }; });
+
       // Get comment counts
       const postIds = data.map(p => p.id);
       const { data: comments } = await supabase
@@ -53,8 +63,10 @@ const FeedPage: React.FC = () => {
       setPosts(
         data
           .filter(p => !blockedIds.has(p.user_id))
-          .map(p => ({ ...p, profiles: p.profiles as any, comment_count: countMap[p.id] || 0 }))
+          .map(p => ({ ...p, profiles: profileMap[p.user_id] || null, comment_count: countMap[p.id] || 0 }))
       );
+    } else {
+      setPosts([]);
     }
     setLoading(false);
   };
