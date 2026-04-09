@@ -1,36 +1,70 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { CreditCard, CheckCircle } from 'lucide-react';
+import { CreditCard, CheckCircle, ShoppingBag } from 'lucide-react';
 import { GIFT_EMOJI } from '@/lib/gifts';
 
+interface ShopItem {
+  id: string;
+  name: string;
+  category: string;
+  icon_url: string;
+  price: number;
+  description: string;
+}
+
 const ShopPage: React.FC = () => {
-  const { profile } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
   const [transactionId, setTransactionId] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [tab, setTab] = useState<'subscription' | 'artifacts'>('subscription');
+  const [artifactTab, setArtifactTab] = useState<'gifts' | 'accessories'>('gifts');
+  const [accessoryCategory, setAccessoryCategory] = useState<'face' | 'hand' | 'head'>('face');
+  const [shopItems, setShopItems] = useState<ShopItem[]>([]);
+  const [ownedItemIds, setOwnedItemIds] = useState<Set<string>>(new Set());
+  const [purchasing, setPurchasing] = useState(false);
 
   const giftCatalog = [
-    { name: 'Black Orchid', price: '500 pts', emoji: GIFT_EMOJI['Black Orchid'] },
-    { name: 'Plushie', price: '1,000 pts', emoji: GIFT_EMOJI.Plushie },
-    { name: 'Heart', price: '2,000 pts', emoji: GIFT_EMOJI.Heart },
-    { name: 'Diamond', price: '5,000 pts', emoji: GIFT_EMOJI.Diamond },
+    { name: 'Black Orchid', price: '1,000 pts', emoji: GIFT_EMOJI['Black Orchid'] },
+    { name: 'Plushie', price: '2,500 pts', emoji: GIFT_EMOJI.Plushie },
+    { name: 'Heart', price: '5,000 pts', emoji: GIFT_EMOJI.Heart },
+    { name: 'Diamond', price: '10,000 pts', emoji: GIFT_EMOJI.Diamond },
   ];
 
-  const accessoryCatalog = ['Premium frames', 'Profile badges', 'Animated bubbles'];
-  const avatarCatalog = ['Campus owl', 'Stealth cat', 'Midnight fox'];
+  const fetchShopData = async () => {
+    const { data: items } = await supabase.from('shop_items').select('*').order('price', { ascending: true });
+    setShopItems((items || []) as ShopItem[]);
+    if (user) {
+      const { data: owned } = await supabase.from('user_items').select('item_id').eq('user_id', user.id);
+      setOwnedItemIds(new Set((owned || []).map(o => o.item_id)));
+    }
+  };
+
+  useEffect(() => { fetchShopData(); }, [user]);
 
   const handleSubmit = () => {
-    if (!transactionId.trim()) {
-      toast.error('Please enter your bKash transaction ID');
-      return;
-    }
-    // Placeholder - in production this would create a subscription record
+    if (!transactionId.trim()) { toast.error('Please enter your bKash transaction ID'); return; }
     setSubmitted(true);
     toast.success('Payment submitted for review! You\'ll be activated within 24 hours.');
   };
+
+  const handlePurchase = async (itemId: string) => {
+    if (!user) return;
+    setPurchasing(true);
+    const { data, error } = await supabase.rpc('purchase_item', { p_item_id: itemId });
+    setPurchasing(false);
+    if (error) { toast.error('Purchase failed'); return; }
+    const result = data as any;
+    if (!result?.success) { toast.error(result?.error || 'Purchase failed'); return; }
+    toast.success(`Purchased! ${result.points_spent} points spent`);
+    refreshProfile();
+    fetchShopData();
+  };
+
+  const filteredItems = shopItems.filter(i => i.category === accessoryCategory);
 
   return (
     <div className="max-w-lg mx-auto">
@@ -40,16 +74,12 @@ const ShopPage: React.FC = () => {
 
       <div className="p-6 space-y-6">
         <div className="grid grid-cols-2 gap-2 rounded-xl border border-border bg-card p-1">
-          <button
-            onClick={() => setTab('subscription')}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${tab === 'subscription' ? 'bg-background text-foreground' : 'text-muted-foreground'}`}
-          >
+          <button onClick={() => setTab('subscription')}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${tab === 'subscription' ? 'bg-background text-foreground' : 'text-muted-foreground'}`}>
             Subscription
           </button>
-          <button
-            onClick={() => setTab('artifacts')}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${tab === 'artifacts' ? 'bg-background text-foreground' : 'text-muted-foreground'}`}
-          >
+          <button onClick={() => setTab('artifacts')}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${tab === 'artifacts' ? 'bg-background text-foreground' : 'text-muted-foreground'}`}>
             Artifacts
           </button>
         </div>
@@ -71,10 +101,10 @@ const ShopPage: React.FC = () => {
                 <p className="text-sm text-muted-foreground">per month</p>
               </div>
               <ul className="space-y-2 text-sm text-foreground/80">
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-success" /> Ad-free experience</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-success" /> Premium accessories (coming soon)</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-success" /> Custom stickers (coming soon)</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-success" /> Priority support</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> Ad-free experience</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> Premium accessories (coming soon)</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> Custom stickers (coming soon)</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> Priority support</li>
               </ul>
             </div>
 
@@ -85,21 +115,15 @@ const ShopPage: React.FC = () => {
                 <p className="text-lg font-bold text-center text-primary">01XXXXXXXXX</p>
                 <p><span className="text-muted-foreground">2.</span> Enter your Transaction ID below</p>
               </div>
-
               {submitted ? (
                 <div className="text-center py-4">
-                  <CheckCircle className="w-12 h-12 text-success mx-auto mb-2" />
+                  <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-2" />
                   <p className="font-medium">Payment submitted!</p>
                   <p className="text-sm text-muted-foreground">We'll verify and activate within 24 hours.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <Input
-                    placeholder="bKash Transaction ID"
-                    value={transactionId}
-                    onChange={e => setTransactionId(e.target.value)}
-                    className="bg-background border-border"
-                  />
+                  <Input placeholder="bKash Transaction ID" value={transactionId} onChange={e => setTransactionId(e.target.value)} className="bg-background border-border" />
                   <Button onClick={handleSubmit} className="w-full">Submit Payment</Button>
                 </div>
               )}
@@ -112,36 +136,80 @@ const ShopPage: React.FC = () => {
           </>
         ) : (
           <>
-            <div className="space-y-3">
-              <div>
-                <h3 className="font-semibold">Gifts</h3>
-                <p className="text-sm text-muted-foreground">Send these from any user profile.</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {giftCatalog.map(item => (
-                  <div key={item.name} className="rounded-xl border border-border bg-card p-4 text-center">
-                    <div className="text-4xl leading-none">{item.emoji}</div>
-                    <p className="mt-2 text-sm font-medium">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">{item.price}</p>
-                  </div>
-                ))}
-              </div>
+            {/* Artifact sub-tabs */}
+            <div className="grid grid-cols-2 gap-2 rounded-xl border border-border bg-card p-1">
+              <button onClick={() => setArtifactTab('gifts')}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${artifactTab === 'gifts' ? 'bg-background text-foreground' : 'text-muted-foreground'}`}>
+                Gifts
+              </button>
+              <button onClick={() => setArtifactTab('accessories')}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${artifactTab === 'accessories' ? 'bg-background text-foreground' : 'text-muted-foreground'}`}>
+                Accessories
+              </button>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl border border-border bg-card p-4">
-                <h3 className="font-semibold">Accessories</h3>
-                <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-                  {accessoryCatalog.map(item => <li key={item}>{item}</li>)}
-                </ul>
+            {artifactTab === 'gifts' ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">Send these from any user profile.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {giftCatalog.map(item => (
+                    <div key={item.name} className="rounded-xl border border-border bg-card p-4 text-center">
+                      <div className="text-4xl leading-none">{item.emoji}</div>
+                      <p className="mt-2 text-sm font-medium">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">{item.price}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="rounded-xl border border-border bg-card p-4">
-                <h3 className="font-semibold">Avatars</h3>
-                <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-                  {avatarCatalog.map(item => <li key={item}>{item}</li>)}
-                </ul>
+            ) : (
+              <div className="space-y-4">
+                {/* Category tabs */}
+                <div className="flex gap-2">
+                  {(['face', 'hand', 'head'] as const).map(cat => (
+                    <button key={cat} onClick={() => setAccessoryCategory(cat)}
+                      className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${accessoryCategory === cat ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground border border-border'}`}>
+                      {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {filteredItems.map(item => {
+                    const owned = ownedItemIds.has(item.id);
+                    return (
+                      <div key={item.id} className="rounded-xl border border-border bg-card p-4 text-center space-y-2">
+                        <img src={item.icon_url} alt={item.name} className="w-12 h-12 mx-auto" />
+                        <p className="text-sm font-medium">{item.name}</p>
+                        <p className="text-xs text-muted-foreground">{item.description}</p>
+                        <p className="text-xs font-bold text-primary">{item.price.toLocaleString()} pts</p>
+                        {owned ? (
+                          <span className="inline-block text-[10px] bg-green-500/20 text-green-400 rounded-full px-2 py-0.5">Owned</span>
+                        ) : (
+                          <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => handlePurchase(item.id)} disabled={purchasing}>
+                            <ShoppingBag className="w-3 h-3 mr-1" /> Buy
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Coming Soon sections */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-muted-foreground">Coming Soon</h4>
+                  <div className="grid grid-cols-3 gap-2">
+                    {['Profile Frames', 'Chat Bubbles', 'Name Effects'].map(item => (
+                      <div key={item} className="rounded-xl border border-border bg-card/50 p-3 text-center">
+                        <div className="w-10 h-10 mx-auto mb-1 rounded-full bg-muted flex items-center justify-center">
+                          <ShoppingBag className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                        <p className="text-[10px] font-medium text-muted-foreground">{item}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="bg-card rounded-xl border border-border p-4 text-center">
               <p className="text-xs text-muted-foreground">Your Points Balance</p>

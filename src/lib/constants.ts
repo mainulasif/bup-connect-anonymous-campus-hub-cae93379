@@ -12,22 +12,20 @@ export const BAN_DURATIONS = [
 ] as const;
 
 export const GENDER_OPTIONS = [
-  { value: 'male', label: 'Male', icon: '🧔' },
-  { value: 'female', label: 'Female', icon: '💁‍♀️' },
-  { value: 'unspecified', label: 'Prefer not to say', icon: '🤫' },
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+  { value: 'unspecified', label: 'Prefer not to say' },
 ] as const;
 
 export const JAIL_CONVERSATION_ID = '00000000-0000-0000-0000-000000000001';
 
-// Rate limits
 export const RATE_LIMITS = {
-  post: { window: 5, max: 3 },      // 3 posts per 5 min
-  comment: { window: 1, max: 5 },    // 5 comments per min
-  message: { window: 1, max: 20 },   // 20 msgs per min
-  report: { window: 60, max: 5 },    // 5 reports per hour
+  post: { window: 5, max: 3 },
+  comment: { window: 1, max: 5 },
+  message: { window: 1, max: 20 },
+  report: { window: 60, max: 5 },
 } as const;
 
-// Delete-for-everyone time limit (5 minutes)
 export const DELETE_FOR_EVERYONE_LIMIT_MS = 5 * 60 * 1000;
 
 export const ROLE_HIERARCHY = ['founder', 'admin', 'creator', 'moderator', 'member'] as const;
